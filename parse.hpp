@@ -8,13 +8,15 @@
 #include <iterator>
 #include <list>
 #include <cmath>
+#include <algorithm>
+#include <iostream>
 #include "../shit_msvc13/shit_msvc13.hpp"
 
 // PARSE
 namespace Parse {
 	// CONSTANTS
-	static std::string const kCalc{"calc("};
-	static std::string const kCalcEnd{");"};
+	static std::string const kExec{"exec("};
+	static std::string const kExecEnd{");"};
 	static std::string const kFilterMask{",["};
 	static std::string const kHex{"0x"};
 	static std::string const kBin{"0b"};
@@ -140,7 +142,7 @@ namespace Parse {
 	static std::vector<uint64_t> FilterArgs(ItStr& beg, ItStr& end) {
 		std::vector<uint64_t> ret{};
 		auto it = std::find(beg, end, ']');
-		if (it < end && std::distance(beg, it) == 0) {
+		if (it < end && beg != it) {
 			ret = Split(beg, it, ',');
 		} else {
 			std::cout << "filter args invalid: " << std::string{beg,end} << std::endl;
@@ -160,6 +162,37 @@ namespace Parse {
 			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
 				if (name == "filter{") {
 					Filter(beg, end, funcs);
+				}
+			};
+		}
+	// SHIFT RIGHT ARGUMENT
+	static size_t const ShrArg(ItStr& beg,ItStr& end) {
+		size_t ret{};
+		if (std::count(beg, end, ',') == 0) {
+			ret = Convert(beg, end);
+			beg += std::distance(beg, end);
+		} else {
+			std::cout << "invalid arguments: " + std::string(beg,end) << std::endl;
+			beg = end;
+		}
+		return ret;
+	}
+	// SHIFT RIGHT
+	static std::list<Shit::Func> Shr(ItStr& beg, ItStr& end) {
+		std::list<Shit::Func> ret{};
+		size_t const arg = ShrArg(beg, end);
+		if (arg != 0) {
+			ret.emplace_back(Shit::Check::OutOfRange());
+			ret.emplace_back(Shit::Shr(arg));
+		}
+		return ret;
+	}
+	// SHIFT RIGHT
+	static auto Shr(std::list<Shit::Func>& funcs) ->
+		std::function<void(std::string const&,ItStr&,ItStr&)> {
+			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
+				if (name == "shr{") {
+					funcs.splice(funcs.cend(), Shr(beg, end));
 				}
 			};
 		}
@@ -186,14 +219,14 @@ namespace Parse {
 			ret.emplace_back(Shit::Check::OutOfRange());
 			ret.emplace_back(Shit::Crop(std::get<0>(args), std::get<1>(args)));
 		} else {
-			std::cout << "invalid arguments: " + std::string(beg,end) << std::endl;;
+			std::cout << "invalid arguments: " + std::string(beg,end) << std::endl;
 			beg = end;
 		} return ret;
 	}
 	// CROP
 	static auto Crop(std::list<Shit::Func>& funcs) ->
-		std::function<void(std::string const, ItStr&,ItStr&)> {
-			return [&funcs] (std::string const name, ItStr& beg, ItStr& end) {
+		std::function<void(std::string const&, ItStr&,ItStr&)> {
+			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
 				if (name == "crop{" && std::count(beg, end, ',') == 1) {
 					funcs.splice(funcs.cend(), Crop(beg, end));
 				}
@@ -241,28 +274,30 @@ namespace Parse {
 				beg = end;
 			};
 		}
-	// EXECUTION
-	std::list<Shit::Func> Exec(std::string str) {
-		std::list<Shit::Func> ret{};
+	// REMOVE UNUSED CHARACTERS
+	void RemoveUnusedChars(std::string& str) {
 		auto rem = [] (char const c) {
 			return c==' '||c=='\n'||c=='\r'||c=='\t'||c=='_'||c=='\'';
 		};
 		str.erase(std::remove_if(str.begin(), str.end(), rem), str.end());
-		auto calc = std::search(str.begin(), str.end(),
-										kCalc.begin(), kCalc.end());
-		auto calc_end = calc + kCalc.size();
-		auto end = std::search(calc, str.end(),
-									  kCalcEnd.begin(), kCalcEnd.end());
-
-		uint64_t lid{};
-		uint8_t offset{};
+	}
+	// EXECUTION
+	std::list<Shit::Func> Exec(std::string str) {
+		std::list<Shit::Func> ret{};
+		RemoveUnusedChars(str);
 		auto commands = Commands(Crop(ret),
+										 Shr(ret),
 										 Filter(ret),
-										 Mask(ret)
-										 );
-
-		while (calc_end != end) {
-			commands(calc_end, end);
+										 Mask(ret));
+		auto exec = std::search(str.begin(), str.end(),
+										kExec.begin(), kExec.end());
+		if (exec != str.end()) {
+			auto beg = exec + kExec.size();
+			auto end = std::search(beg, str.end(),
+										  kExecEnd.begin(), kExecEnd.end());
+			while (beg != end) {
+				commands(beg, end);
+			}
 		}
 		return ret;
 	}
