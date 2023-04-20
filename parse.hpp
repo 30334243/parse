@@ -332,8 +332,14 @@ namespace Parse {
 	static std::list<Shit::Func> ShlInBits(ItStr& beg, ItStr& end) {
 		std::list<Shit::Func> ret{};
 		size_t const arg{Convert(beg, end)};
-		ret.emplace_back(Shit::Check::OutOfRangeLeft(arg));
-		ret.emplace_back(Shit::ShlInBits(arg));
+		size_t const sz_in_bytes{arg < 8 ? 0 : arg / 8};
+		if (arg%8 == 0) {
+			ret.emplace_back(Shit::Check::OutOfRangeLeft(sz_in_bytes));
+			ret.emplace_back(Shit::Shl(sz_in_bytes));
+		} else {	
+			ret.emplace_back(Shit::Check::OutOfRangeLeft(sz_in_bytes));
+			ret.emplace_back(Shit::ShlInBits(arg));
+		}
 		return ret;
 	}
 	// SHIFT LEFT
@@ -350,7 +356,7 @@ namespace Parse {
 			return [&funcs] (std::string const& name,ItStr& beg, ItStr& end) {
 				if (name == "shl{" && beg < end) {
 					auto is_bits = std::search(beg, end, kIsBits.begin(), kIsBits.end());
-					if (std::count(beg, end, ',') == 0) {
+					if (std::count(beg, end, ',') == 0 && is_bits == end) {
 						funcs.splice(funcs.cend(), Shl(beg, end));
 						beg += std::distance(beg, end);
 					} else if (is_bits != end) {
@@ -366,8 +372,14 @@ namespace Parse {
 	static std::list<Shit::Func> ShrInBits(ItStr& beg, ItStr& end) {
 		std::list<Shit::Func> ret{};
 		size_t const arg{Convert(beg, end)};
-		ret.emplace_back(Shit::Check::OutOfRangeRight(arg));
-		ret.emplace_back(Shit::ShrInBits(arg));
+		size_t const sz_in_bytes{arg < 8 ? 0 : arg / 8};
+		if (arg%8 == 0) {
+			ret.emplace_back(Shit::Check::OutOfRangeRight(sz_in_bytes));
+			ret.emplace_back(Shit::Shr(sz_in_bytes));
+		} else {
+			ret.emplace_back(Shit::Check::OutOfRangeRight(sz_in_bytes));
+			ret.emplace_back(Shit::ShrInBits(arg));
+		}
 		return ret;
 	}
 	// SHIFT RIGHT
@@ -485,27 +497,32 @@ namespace Parse {
 		str.erase(std::remove_if(str.begin(), str.end(), rem), str.end());
 	}
 	// EXECUTION
-	std::list<Shit::Func> Exec(std::string str) {
-		std::list<Shit::Func> ret{};
+	static std::vector<std::list<Shit::Func>> Exec(std::string str, std::ofstream& dst) {
+		std::vector<std::list<Shit::Func>> ret{};
 		RemoveUnusedChars(str);
-		auto commands = Commands(Crop(ret),
-										 Shr(ret),
-										 Shl(ret),
-										 Eq(ret),
-										 EqNot(ret),
-										 Filter(ret),
-										 FilterNot(ret),
-										 Mask(ret),
-										 MaskNot(ret));
 		auto exec = std::search(str.begin(), str.end(),
 										kExec.begin(), kExec.end());
-		if (exec != str.end()) {
+		while (exec != str.end()) {
+			std::list<Shit::Func> funcs{};
+			auto commands = Commands(Crop(funcs),
+											 Shr(funcs),
+											 Shl(funcs),
+											 Eq(funcs),
+											 EqNot(funcs),
+											 Filter(funcs),
+											 FilterNot(funcs),
+											 Mask(funcs),
+											 MaskNot(funcs));
 			auto beg = exec + kExec.size();
 			auto end = std::search(beg, str.end(),
 										  kExecEnd.begin(), kExecEnd.end());
 			while (beg < end) {
 				commands(beg, end);
 			}
+			exec = std::search(end, str.end(),
+									 kExec.begin(), kExec.end());
+			funcs.splice(funcs.cend(), std::list<Shit::Func>{Shit::Write<Shit::kSig>(dst)});
+			ret.push_back(funcs);
 		}
 		return ret;
 	}
