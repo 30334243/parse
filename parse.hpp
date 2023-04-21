@@ -18,7 +18,7 @@ namespace Parse {
 	static std::string const kExec{"exec("};
 	static std::string const kExecEnd{");"};
 	static std::string const kFilterMask{",["};
-	static std::string const kIsBits{"bits"};
+	/* static std::string const kIsBits{"bits"}; */
 	static std::string const kHex{"0x"};
 	static std::string const kBin{"0b"};
 	static size_t const kMaxChar{(size_t)(int8_t)-1};
@@ -31,15 +31,16 @@ namespace Parse {
 	static uint64_t lid{};
 	static uint8_t offset{};
 	std::vector<std::string> const kNameFuncs{
-		"crop{","shr{","shl{","mask{","filter{","eq{[","!mask{","!filter{","!eq{["
+		"crop{","cropb{",
+			"shr{","shrb{",
+			"shl{","shlb{",
+			"mask{","!mask{",
+			"filter{","!filter{",
+			"eq{[","!eq{["
 	};
-	// MEMBERS
-	static std::vector<std::function<bool(uint8_t**,uint8_t**)>> funcs{};
 	// USING
 	using ItStr = std::string::iterator;
-	using Poly = std::tuple<uint8_t,uint16_t,uint32_t,uint64_t>;
-	using PolyVec = std::tuple<std::vector<uint8_t>,std::vector<uint16_t>,std::vector<uint32_t>,std::vector<uint64_t>>;
-	using ItPair = std::pair<ItStr,ItStr>;
+	using Func = std::function<void(std::string const&,ItStr&,ItStr&,uint8_t&)>;
 	// GET BASE
 	static uint8_t GetBase(ItStr& beg, ItStr& end) {
 		uint8_t ret{};
@@ -196,8 +197,8 @@ namespace Parse {
 		}
 	}
 	// MASK
-	static auto Mask(std::list<Shit::Func>& funcs) -> std::function<void(std::string const&,ItStr&,ItStr&)> {
-		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
+	static auto Mask(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
 			if (name == "mask{" && beg < end) {
 				if (beg != end) {
 					if (std::count(beg, end, ',') == 0) {
@@ -209,11 +210,12 @@ namespace Parse {
 					}
 				}
 			}
+			return 0;
 		};
 	}
 	// MASK NOT
-	static auto MaskNot(std::list<Shit::Func>& funcs) -> std::function<void(std::string const&,ItStr&,ItStr&)> {
-		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
+	static auto MaskNot(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
 			if (name == "!mask{" && beg < end) {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t const sz{Convert(beg, end)};
@@ -223,6 +225,7 @@ namespace Parse {
 					std::cout << "command MaskNot invalid: " + std::string(beg, end) << std::endl;
 				}
 			}
+			return 0;
 		};
 	}
 	// GET FILTER MASK
@@ -258,14 +261,14 @@ namespace Parse {
 		SetFilter(mask, vec, funcs);
 	}
 	// FILTER
-	static auto Filter(std::list<Shit::Func>& funcs) ->
-		std::function<void(std::string const&,ItStr&,ItStr&)> {
-			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
-				if (name == "filter{" && beg < end) {
-					Filter(beg, end, funcs);
-				}
-			};
-		}
+	static auto Filter(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "filter{" && beg < end) {
+				Filter(beg, end, funcs);
+			}
+			return 0;
+		};
+	}
 	// FILTER NOT
 	static void FilterNot(ItStr& beg, ItStr& end, std::list<Shit::Func>& funcs) {
 		uint64_t const mask{GetFilterMask(beg, end)};
@@ -273,14 +276,14 @@ namespace Parse {
 		SetFilterNot(mask, vec, funcs);
 	}
 	// FILTER NOT
-	static auto FilterNot(std::list<Shit::Func>& funcs) ->
-		std::function<void(std::string const&,ItStr&,ItStr&)> {
-			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
-				if (name == "!filter{" && beg < end) {
-					FilterNot(beg, end, funcs);
-				}
-			};
-		}
+	static auto FilterNot(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "!filter{" && beg < end) {
+				FilterNot(beg, end, funcs);
+			}
+			return 0;
+		};
+	}
 	// EQUAL ARGUMENT
 	static std::vector<uint64_t> EqArgs(ItStr& beg, ItStr& end) {
 		std::vector<uint64_t> ret{};
@@ -302,15 +305,15 @@ namespace Parse {
 		return ret;
 	}
 	// EQUAL
-	static auto Eq(std::list<Shit::Func>& funcs) ->
-		std::function<void(std::string const&,ItStr&,ItStr&)> {
-			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
-				if (name == "eq{[" && beg < end) {
-					funcs.splice(funcs.cend(), Eq(beg, end, funcs));
-					beg += std::distance(beg, end);
-				}
-			};
-		}
+	static auto Eq(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "eq{[" && beg < end) {
+				funcs.splice(funcs.cend(), Eq(beg, end, funcs));
+				beg += std::distance(beg, end);
+			}
+			return 0;
+		};
+	}
 	// EQUAL NOT
 	static std::list<Shit::Func> EqNot(ItStr& beg, ItStr& end, std::list<Shit::Func>& funcs) {
 		std::list<Shit::Func> ret{};
@@ -319,28 +322,39 @@ namespace Parse {
 		return ret;
 	}
 	// EQUAL NOT
-	static auto EqNot(std::list<Shit::Func>& funcs) ->
-		std::function<void(std::string const&,ItStr&,ItStr&)> {
-			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
-				if (name == "!eq{[" && beg < end) {
-					funcs.splice(funcs.cend(), EqNot(beg, end, funcs));
-					beg += std::distance(beg, end);
-				}
-			};
-		}
+	static auto EqNot(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "!eq{[" && beg < end) {
+				funcs.splice(funcs.cend(), EqNot(beg, end, funcs));
+				beg += std::distance(beg, end);
+			}
+			return 0;
+		};
+	}
 	// SHIFT LEFT IN BITS
-	static std::list<Shit::Func> ShlInBits(ItStr& beg, ItStr& end) {
+	static std::list<Shit::Func> ShlInBits(ItStr& beg, ItStr& end, uint8_t& err) {
 		std::list<Shit::Func> ret{};
 		size_t const arg{Convert(beg, end)};
-		size_t const sz_in_bytes{arg < 8 ? 0 : arg / 8};
-		if (arg%8 == 0) {
-			ret.emplace_back(Shit::Check::OutOfRangeLeft(sz_in_bytes));
-			ret.emplace_back(Shit::Shl(sz_in_bytes));
-		} else {	
-			ret.emplace_back(Shit::Check::OutOfRangeLeft(sz_in_bytes));
+		if (arg < 8) {
 			ret.emplace_back(Shit::ShlInBits(arg));
+		} else {
+			std::cout << "arg shlb must be < 8: " << std::to_string(arg) << std::endl;
+			err = 1;
 		}
 		return ret;
+	}
+	// SHIFT LEFT BITS
+	static auto ShlInBits(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name,ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "shlb{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					funcs.splice(funcs.cend(), ShlInBits(beg, end, err));
+					beg += std::distance(beg, end);
+				} else {
+					std::cout << "command \"shlb\" invalid: " << std::string(beg,end) << std::endl;
+				}
+			} 
+		};
 	}
 	// SHIFT LEFT
 	static std::list<Shit::Func> Shl(ItStr& beg, ItStr& end) {
@@ -351,36 +365,43 @@ namespace Parse {
 		return ret;
 	}
 	// SHIFT LEFT
-	static auto Shl(std::list<Shit::Func>& funcs) ->
-		std::function<void(std::string const&,ItStr&,ItStr&)> {
-			return [&funcs] (std::string const& name,ItStr& beg, ItStr& end) {
-				if (name == "shl{" && beg < end) {
-					auto is_bits = std::search(beg, end, kIsBits.begin(), kIsBits.end());
-					if (std::count(beg, end, ',') == 0 && is_bits == end) {
-						funcs.splice(funcs.cend(), Shl(beg, end));
-						beg += std::distance(beg, end);
-					} else if (is_bits != end) {
-						funcs.splice(funcs.cend(), ShlInBits(beg, is_bits));
-						beg += std::distance(beg, end);
-					} else {
-						std::cout << "command \"shl\" invalid: " << std::string(beg,end) << std::endl;
-					}
-				} 
-			};
-		}
+	static auto Shl(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name,ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "shl{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					funcs.splice(funcs.cend(), Shl(beg, end));
+					beg += std::distance(beg, end);
+				} else {
+					std::cout << "command \"shl\" invalid: " << std::string(beg,end) << std::endl;
+				}
+			} 
+			return 0;
+		};
+	}
 	// SHIFT RIGHT IN BITS
-	static std::list<Shit::Func> ShrInBits(ItStr& beg, ItStr& end) {
+	static std::list<Shit::Func> ShrInBits(ItStr& beg, ItStr& end, uint8_t& err) {
 		std::list<Shit::Func> ret{};
 		size_t const arg{Convert(beg, end)};
-		size_t const sz_in_bytes{arg < 8 ? 0 : arg / 8};
-		if (arg%8 == 0) {
-			ret.emplace_back(Shit::Check::OutOfRangeRight(sz_in_bytes));
-			ret.emplace_back(Shit::Shr(sz_in_bytes));
-		} else {
-			ret.emplace_back(Shit::Check::OutOfRangeRight(sz_in_bytes));
+		if (arg < 8) {
 			ret.emplace_back(Shit::ShrInBits(arg));
+		} else {
+			std::cout << "arg shrb must be < 8: " << std::to_string(arg) << std::endl;
+			err = 1;
 		}
 		return ret;
+	}
+	// SHIFT RIGHT BITS
+	static auto ShrInBits(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "shrb{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					funcs.splice(funcs.cend(), ShrInBits(beg, end, err));
+					beg += std::distance(beg, end);
+				} else {
+					std::cout << "command \"shrb\" invalid: " << std::string(beg,end) << std::endl;
+				}
+			} 
+		};
 	}
 	// SHIFT RIGHT
 	static std::list<Shit::Func> Shr(ItStr& beg, ItStr& end) {
@@ -391,23 +412,18 @@ namespace Parse {
 		return ret;
 	}
 	// SHIFT RIGHT
-	static auto Shr(std::list<Shit::Func>& funcs) ->
-		std::function<void(std::string const&,ItStr&,ItStr&)> {
-			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
-				if (name == "shr{" && beg < end) {
-					auto is_bits = std::search(beg, end, kIsBits.begin(), kIsBits.end());
-					if (std::count(beg, end, ',') == 0 && is_bits == end) {
-						funcs.splice(funcs.cend(), Shr(beg, end));
-						beg += std::distance(beg, end);
-					} else if (is_bits != end) {
-						funcs.splice(funcs.cend(), ShrInBits(beg, is_bits));
-						beg += std::distance(beg, end);
-					} else {
-						std::cout << "command \"shr\" invalid: " << std::string(beg,end) << std::endl;
-					}
+	static auto Shr(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "shr{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					funcs.splice(funcs.cend(), Shr(beg, end));
+					beg += std::distance(beg, end);
+				} else {
+					std::cout << "command \"shr\" invalid: " << std::string(beg,end) << std::endl;
 				}
-			};
-		}
+			}
+		};
+	}
 	// CROP ARGUMENTS
 	static std::tuple<size_t,size_t> CropArgs(ItStr& beg, ItStr& end) {
 		std::tuple<size_t,size_t> ret{};
@@ -427,19 +443,19 @@ namespace Parse {
 		return ret;
 	}
 	// CROP
-	static auto Crop(std::list<Shit::Func>& funcs) ->
-		std::function<void(std::string const&,ItStr&,ItStr&)> {
-			return [&funcs] (std::string const& name, ItStr& beg, ItStr& end) {
-				if (name == "crop{" && beg < end) {
-					if (std::count(beg, end, ',') == 1) {
-						funcs.splice(funcs.cend(), Crop(beg, end));
-						beg += std::distance(beg, end);
-					} else {
-						std::cout << "command \"crop\" invalid: " << std::string(beg,end) << std::endl;
-					}
+	static auto Crop(std::list<Shit::Func>& funcs) -> Func {
+		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "crop{" && beg < end) {
+				if (std::count(beg, end, ',') == 1) {
+					funcs.splice(funcs.cend(), Crop(beg, end));
+					beg += std::distance(beg, end);
+				} else {
+					std::cout << "command \"crop\" invalid: " << std::string(beg,end) << std::endl;
 				}
-			};
-		}
+			}
+			return 0;
+		};
+	}
 	// GET COMMAND
 	std::string GetCommand(std::string const& name, ItStr& beg, ItStr& end) {
 		std::string ret{};
@@ -451,24 +467,26 @@ namespace Parse {
 		}
 		return ret;
 	}
-	// FOR TUPLE
+	// FOR TUPLE EMPTY
 	template <size_t I = 0, typename... Ts>
 		typename std::enable_if<I == sizeof...(Ts), void>::type
-		for_tuple(std::tuple<Ts...>& tup, std::string const& name, ItStr& beg, ItStr& end) {
+		for_tuple(std::tuple<Ts...>& tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
 			return;
 		}
-
+	// FOR TUPLE
 	template <size_t I = 0, typename... Ts>
 		typename std::enable_if<(I < sizeof...(Ts)), void>::type
-		for_tuple(std::tuple<Ts...>& tup, std::string const& name, ItStr& beg, ItStr& end) {
-			std::get<I>(tup)(name, beg, end);
-			for_tuple<I + 1>(tup, name, beg, end);
+		for_tuple(std::tuple<Ts...>& tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			std::get<I>(tup)(name, beg, end, err);
+			if (err == 0) {
+				for_tuple<I + 1>(tup, name, beg, end, err);
+			}
 		}
 	// COMMANDS
 	template<class... ArgsTuple>
 		static auto Commands(ArgsTuple... args_tuple) ->
-		std::function<void(ItStr&,ItStr&)> {
-			return [args_tuple...] (ItStr& beg, ItStr& end) {
+		std::function<void(ItStr&,ItStr&,uint8_t&)> {
+			return [args_tuple...] (ItStr& beg, ItStr& end, uint8_t& err) {
 				std::tuple<ArgsTuple...> ts{args_tuple...};
 				while (beg < end) {
 					std::string command{};
@@ -477,7 +495,10 @@ namespace Parse {
 						if (!command.empty()) {
 							beg += name.size();
 							auto end_arg = std::find(beg, end, '}');
-							for_tuple(ts, command, beg, end_arg);
+							for_tuple(ts, command, beg, end_arg, err);
+							if (err == 1) {
+								return;
+							}
 							beg += 2;
 							break;
 						}
@@ -497,7 +518,7 @@ namespace Parse {
 		str.erase(std::remove_if(str.begin(), str.end(), rem), str.end());
 	}
 	// EXECUTION
-	static std::vector<std::list<Shit::Func>> Exec(std::string str, std::ofstream& dst) {
+	static std::vector<std::list<Shit::Func>> Exec(std::string str, std::ofstream& dst, uint8_t& err) {
 		std::vector<std::list<Shit::Func>> ret{};
 		RemoveUnusedChars(str);
 		auto exec = std::search(str.begin(), str.end(),
@@ -505,19 +526,19 @@ namespace Parse {
 		while (exec != str.end()) {
 			std::list<Shit::Func> funcs{};
 			auto commands = Commands(Crop(funcs),
-											 Shr(funcs),
-											 Shl(funcs),
-											 Eq(funcs),
-											 EqNot(funcs),
-											 Filter(funcs),
-											 FilterNot(funcs),
-											 Mask(funcs),
-											 MaskNot(funcs));
+											 Shr(funcs),ShrInBits(funcs),
+											 Shl(funcs),ShlInBits(funcs),
+											 Eq(funcs),EqNot(funcs),
+											 Filter(funcs),FilterNot(funcs),
+											 Mask(funcs),MaskNot(funcs));
 			auto beg = exec + kExec.size();
 			auto end = std::search(beg, str.end(),
 										  kExecEnd.begin(), kExecEnd.end());
 			while (beg < end) {
-				commands(beg, end);
+				commands(beg, end, err);
+				if (err == 1) {
+					break;
+				}
 			}
 			exec = std::search(end, str.end(),
 									 kExec.begin(), kExec.end());
