@@ -435,19 +435,21 @@ namespace Parse {
 		return ret;	
 	}
 	// CROP
-	static std::list<Shit::Func> Crop(ItStr& beg, ItStr& end) {
+	static std::list<Shit::Func> Crop(ItStr& beg, ItStr& end, size_t& counter) {
 		std::list<Shit::Func> ret{};
 		auto args = CropArgs(beg, end);
-		ret.emplace_back(Shit::Check::OutOfRange(std::get<0>(args), std::get<1>(args)));
+		ret.emplace_back(Shit::Check::OutOfRange(std::get<0>(args),
+															  std::get<1>(args),
+															  counter));
 		ret.emplace_back(Shit::Crop(std::get<0>(args), std::get<1>(args)));
 		return ret;
 	}
 	// CROP
-	static auto Crop(std::list<Shit::Func>& funcs) -> Func {
-		return [&funcs] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+	static auto Crop(std::list<Shit::Func>& funcs, size_t& counter) -> Func {
+		return [&funcs, &counter] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
 			if (name == "crop{" && beg < end) {
 				if (std::count(beg, end, ',') == 1) {
-					funcs.splice(funcs.cend(), Crop(beg, end));
+					funcs.splice(funcs.cend(), Crop(beg, end, counter));
 					beg += std::distance(beg, end);
 				} else {
 					std::cout << "command \"crop\" invalid: " << std::string(beg,end) << std::endl;
@@ -506,6 +508,8 @@ namespace Parse {
 					if (command.empty()) {
 						std::cout << "unknown command: " << std::string(beg,end) << std::endl;
 						beg = end;
+						err = 1;
+						return;
 					}
 				}
 			};
@@ -518,14 +522,17 @@ namespace Parse {
 		str.erase(std::remove_if(str.begin(), str.end(), rem), str.end());
 	}
 	// EXECUTION
-	static std::vector<std::list<Shit::Func>> Exec(std::string str, std::ofstream& dst, uint8_t& err) {
+	static std::vector<std::list<Shit::Func>> Exec(std::string str,
+																  std::ofstream& dst,
+																  uint8_t& err,
+																  size_t& num_pck) {
 		std::vector<std::list<Shit::Func>> ret{};
 		RemoveUnusedChars(str);
 		auto exec = std::search(str.begin(), str.end(),
 										kExec.begin(), kExec.end());
 		while (exec != str.end()) {
 			std::list<Shit::Func> funcs{};
-			auto commands = Commands(Crop(funcs),
+			auto commands = Commands(Crop(funcs, num_pck),
 											 Shr(funcs),ShrInBits(funcs),
 											 Shl(funcs),ShlInBits(funcs),
 											 Eq(funcs),EqNot(funcs),
@@ -542,8 +549,10 @@ namespace Parse {
 			}
 			exec = std::search(end, str.end(),
 									 kExec.begin(), kExec.end());
-			funcs.splice(funcs.cend(), std::list<Shit::Func>{Shit::Write<Shit::kSig>(dst)});
-			ret.push_back(funcs);
+			if (err == 0) {
+				funcs.splice(funcs.cend(), std::list<Shit::Func>{Shit::Write<Shit::kSig>(dst)});
+				ret.push_back(funcs);
+			}
 		}
 		return ret;
 	}
