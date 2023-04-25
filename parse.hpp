@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <list>
+#include <cctype>
 
 #include "parse_interface.hpp"
 #include "../shit_msvc13/shit_msvc13.hpp"
@@ -36,7 +37,6 @@ namespace Parse {
 					ret = false;
 				}
 			} else {
-				std::cout << "unknown base: " << std::to_string(base) << std::endl;
 				ret = false;
 			}
 			return ret;
@@ -97,8 +97,8 @@ namespace Parse {
 									 Func func) {
 				bool ret{true};
 				auto it = find(beg, end, term);
+				uint64_t num{};
 				while (it < end) {
-					uint64_t num{};
 					if (!Convert(beg, it, num)) {
 						ret = false;
 						break;
@@ -109,21 +109,21 @@ namespace Parse {
 					}
 					beg = ++it;
 					it = std::find(it, end, term);
-					if (it == end) {
-						if (Convert(beg, it, num) && (!func(num))) {
-							ret = false;
-							break;
-						}
+				}
+				if (it == end) {
+					if (Convert(beg, it, num) && (!func(num))) {
+						ret = false;
 					}
 				}
 				return ret;
 			}
 		// GET LIST ARGUMENT
-		template<class T, class Func>
+		template<class Func>
 			static bool OpForArgsList(ItStr& beg,
 											  ItStr& end,
 											  char const term,
-											  Func func) {
+											  Func func,
+											  std::string& msg) {
 				bool ret{};
 				ItStr it = std::find(beg, end, ']');
 				if (it < end && beg != it && it[1] == '}') {
@@ -131,7 +131,7 @@ namespace Parse {
 						beg = it+1;
 						ret = true;
 					} else {
-						std::cout << "Argument invalid: " << std::string(beg,end) << std::endl;
+						msg = "Argument invalid: " + std::string(beg,end);
 					}
 				} else {
 					beg = end;
@@ -147,51 +147,101 @@ struct Parsed {
 	using Func = std::function<void(std::string const&,ItStr&,ItStr&,uint8_t&)>;
 	// MEMBERS
 	std::vector<std::list<Shit::Func>> funcs;
+	std::string msg{};
 	uint64_t insert_sz{};
 	uint64_t lid{};
 	uint8_t offset{};
-	// MASK
-	void Mask(uint64_t const sz) {
-		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
-		if (sz < Parse::kMaxChar) {
-			this->funcs.back().emplace_back(Shit::Mask((uint8_t)sz,
-																	 Shit::SaveToLid<uint8_t>(lid, offset)));
-		} else if (sz < Parse::kMaxShort) {
-			this->funcs.back().emplace_back(Shit::Mask((uint16_t)sz,
-																	 Shit::SaveToLid<uint16_t>(lid, offset)));
-		} else if (sz < Parse::kMaxInt) {
-			this->funcs.back().emplace_back(Shit::Mask((uint32_t)sz,
-																	 Shit::SaveToLid<uint32_t>(lid, offset)));
-		} else if (sz < Parse::kMaxLong) {
+	// AND
+	void And(uint64_t const sz) {
+		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
+		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(
-				Shit::Mask((uint64_t)sz,
-							  Shit::SaveToLid<uint64_t>(lid, offset)));
+				Shit::And((uint8_t)sz,
+							 Shit::SaveToLid<uint8_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxShort) {
+			this->funcs.back().emplace_back(
+				Shit::And((uint16_t)sz,
+							 Shit::SaveToLid<uint16_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxInt) {
+			this->funcs.back().emplace_back(
+				Shit::And((uint32_t)sz,
+							 Shit::SaveToLid<uint32_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxLong) {
+			this->funcs.back().emplace_back(
+				Shit::And((uint64_t)sz,
+							 Shit::SaveToLid<uint64_t>(lid, offset)));
 		} else {
-			std::cout << "unknown base: " << std::endl;
+			msg = "unknown base: " + std::to_string(sz);
 		}
 	}
-	// MASK NOT
-	void MaskNot(uint64_t const sz) {
-		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
-		if (sz < Parse::kMaxChar) {
+	// AND NOT
+	void AndNot(uint64_t const sz) {
+		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
+		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(
-				Shit::MaskNot((uint8_t)sz,
-								  Shit::SaveToLid<uint8_t>(lid, offset)));
-		} else if (sz < Parse::kMaxShort) {
+				Shit::AndNot((uint8_t)sz,
+								 Shit::SaveToLid<uint8_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxShort) {
 			this->funcs.back().emplace_back(
-				Shit::MaskNot((uint16_t)sz,
-								  Shit::SaveToLid<uint16_t>(lid, offset)));
-		} else if (sz < Parse::kMaxInt) {
+				Shit::AndNot((uint16_t)sz,
+								 Shit::SaveToLid<uint16_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxInt) {
 			this->funcs.back().emplace_back(
-				Shit::MaskNot((uint32_t)sz,
-								  Shit::SaveToLid<uint32_t>(lid, offset)));
-		} else if (sz < Parse::kMaxLong) {
+				Shit::AndNot((uint32_t)sz,
+								 Shit::SaveToLid<uint32_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxLong) {
 			this->funcs.back().emplace_back(
-				Shit::MaskNot((uint64_t)sz,
-								  Shit::SaveToLid<uint64_t>(lid, offset)));
+				Shit::AndNot((uint64_t)sz,
+								 Shit::SaveToLid<uint64_t>(lid, offset)));
 		} else {
-			std::cout << "unknown base: " << std::endl;
+			msg = "unknown base" + std::to_string(sz);
 		}
+	}
+	// SPLIT
+	void Split(uint64_t const sz) {
+		if (sz <= Parse::kMaxChar) {
+			this->funcs.back().emplace_back(
+				Shit::Split((uint8_t)sz,
+								Shit::SaveToLid<uint8_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxShort) {
+			this->funcs.back().emplace_back(
+				Shit::Split((uint16_t)sz,
+								Shit::SaveToLid<uint16_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxInt) {
+			this->funcs.back().emplace_back(
+				Shit::Split((uint32_t)sz,
+								Shit::SaveToLid<uint32_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxLong) {
+			this->funcs.back().emplace_back(
+				Shit::Split((uint64_t)sz,
+								Shit::SaveToLid<uint64_t>(lid, offset)));
+		} else {
+			msg = "unknown base: " + std::to_string(sz);
+		}
+		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
+	}
+	// SPLIT NOT
+	void SplitNot(uint64_t const sz) {
+		if (sz <= Parse::kMaxChar) {
+			this->funcs.back().emplace_back(
+				Shit::SplitNot((uint8_t)sz,
+									Shit::SaveToLid<uint8_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxShort) {
+			this->funcs.back().emplace_back(
+				Shit::SplitNot((uint16_t)sz,
+									Shit::SaveToLid<uint16_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxInt) {
+			this->funcs.back().emplace_back(
+				Shit::SplitNot((uint32_t)sz,
+									Shit::SaveToLid<uint32_t>(lid, offset)));
+		} else if (sz <= Parse::kMaxLong) {
+			this->funcs.back().emplace_back(
+				Shit::SplitNot((uint64_t)sz,
+									Shit::SaveToLid<uint64_t>(lid, offset)));
+		} else {
+			msg = "unknown base: " + std::to_string(sz);
+		}
+		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
 	}
 	// INSERT
 	void Insert(std::vector<uint8_t> const& args) {
@@ -201,144 +251,184 @@ struct Parsed {
 	}
 	// REPLACE
 	void Replace(std::vector<uint8_t> const& args) {
-		this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(args.size()));
+		this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(args.size(), msg));
 		this->funcs.back().emplace_back(Shit::Replace(args));
 	}
 	// FILTER
 	void Filter(uint64_t const sz, std::vector<uint64_t> const& args) {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
-		if (sz < Parse::kMaxChar) {
+		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(
 				Shit::Filter<uint8_t>(sz,
 											 args,
 											 Shit::SaveToLid<uint8_t>(lid, offset)));
-		} else if (sz < Parse::kMaxShort) {
+		} else if (sz <= Parse::kMaxShort) {
 			this->funcs.back().emplace_back(
 				Shit::Filter<uint16_t>(sz,
 											  args,
 											  Shit::SaveToLid<uint16_t>(lid, offset)));
-		} else if (sz < Parse::kMaxInt) {
+		} else if (sz <= Parse::kMaxInt) {
 			this->funcs.back().emplace_back(
 				Shit::Filter<uint32_t>(sz,
 											  args,
 											  Shit::SaveToLid<uint32_t>(lid, offset)));
-		} else if (sz < Parse::kMaxLong) {
+		} else if (sz <= Parse::kMaxLong) {
 			this->funcs.back().emplace_back(
 				Shit::Filter<uint64_t>(sz,
 											  args,
 											  Shit::SaveToLid<uint64_t>(lid, offset)));
 		} else {
-			std::cout << "unknown base: " << std::endl;
+			msg = "unknown base: " + std::to_string(sz);
 		}
 	}
 	// FILTER NOT
 	void FilterNot(uint64_t const sz, std::vector<uint64_t> const& args) {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
-		if (sz < Parse::kMaxChar) {
+		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(Shit::FilterNot<uint8_t>(sz,
 																						args,
 																						Shit::SaveToLid<uint8_t>(lid, offset)));
-		} else if (sz < Parse::kMaxShort) {
+		} else if (sz <= Parse::kMaxShort) {
 			this->funcs.back().emplace_back(Shit::FilterNot<uint16_t>(sz,
 																						 args,
 																						 Shit::SaveToLid<uint16_t>(lid, offset)));
-		} else if (sz < Parse::kMaxInt) {
+		} else if (sz <= Parse::kMaxInt) {
 			this->funcs.back().emplace_back(Shit::FilterNot<uint32_t>(sz,
 																						 args,
 																						 Shit::SaveToLid<uint32_t>(lid, offset)));
-		} else if (sz < Parse::kMaxLong) {
+		} else if (sz <= Parse::kMaxLong) {
 			this->funcs.back().emplace_back(Shit::FilterNot<uint64_t>(sz,
 																						 args,
 																						 Shit::SaveToLid<uint64_t>(lid, offset)));
 		} else {
-			std::cout << "unknown base: " << std::endl;
+			msg = "unknown base: " + std::to_string(sz);
 		}
 	}
 	// EQUAL
 	void Eq(std::vector<uint64_t> const& args) {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
 		size_t const sz{args[0]};
-		if (sz < Parse::kMaxChar) {
+		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(Shit::Eq<uint8_t>(args,
 																			  Shit::SaveToLid<uint8_t>(lid, offset)));
-		} else if (sz < Parse::kMaxShort) {
+		} else if (sz <= Parse::kMaxShort) {
 			this->funcs.back().emplace_back(Shit::Eq<uint16_t>(args,
 																				Shit::SaveToLid<uint16_t>(lid, offset)));
-		} else if (sz < Parse::kMaxInt) {
+		} else if (sz <= Parse::kMaxInt) {
 			this->funcs.back().emplace_back(Shit::Eq<uint32_t>(args,
 																				Shit::SaveToLid<uint32_t>(lid, offset)));
-		} else if (sz < Parse::kMaxLong) {
+		} else if (sz <= Parse::kMaxLong) {
 			this->funcs.back().emplace_back(Shit::Eq<uint64_t>(args,
 																				Shit::SaveToLid<uint64_t>(lid, offset)));
 		} else {
-			std::cout << "unknown base: " << std::endl;
+			msg = "unknown base: " + std::to_string(sz);
 		}
 	}
 	// EQUAL NOT
 	void EqNot(std::vector<uint64_t> const& args) {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
 		size_t const sz{args[0]};
-		if (sz < Parse::kMaxChar) {
+		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(
 				Shit::EqNot<uint8_t>(args,
 											Shit::SaveToLid<uint8_t>(lid, offset)));
-		} else if (sz < Parse::kMaxShort) {
+		} else if (sz <= Parse::kMaxShort) {
 			this->funcs.back().emplace_back(
 				Shit::EqNot<uint16_t>(args,
 											 Shit::SaveToLid<uint16_t>(lid, offset)));
-		} else if (sz < Parse::kMaxInt) {
+		} else if (sz <= Parse::kMaxInt) {
 			this->funcs.back().emplace_back(
 				Shit::EqNot<uint32_t>(args,
 											 Shit::SaveToLid<uint32_t>(lid, offset)));
-		} else if (sz < Parse::kMaxLong) {
+		} else if (sz <= Parse::kMaxLong) {
 			this->funcs.back().emplace_back(
 				Shit::EqNot<uint64_t>(args,
 											 Shit::SaveToLid<uint64_t>(lid, offset)));
 		} else {
-			std::cout << "unknown base: " << std::endl;
+			msg = "unknown base: " + std::to_string(sz);
 		}
 	}
-	// MASK
-	auto Mask() -> Func {
+	// AND
+	auto And() -> Func {
 		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-			if (name == "mask{" && beg < end) {
+			if (name == "and{" && beg < end) {
 				if (beg != end) {
 					if (std::count(beg, end, ',') == 0) {
 						uint64_t sz{};
 						if (Parse::Utils::Convert(beg, end, sz)) {
-							Mask(sz);
+							And(sz);
 							beg += std::distance(beg, end);
 						} else {
 							err = 1;
 						}
 					} else {
-						std::cout << "command mask invalid: " + std::string(beg, end) << std::endl;
+						msg = "Command \"And\" invalid: " + std::string(beg, end);
 						err = 1;
 					}
 				}
 			}
 		};
 	}
-	// MASK NOT
-	auto MaskNot() -> Func {
+	// AND NOT
+	auto AndNot() -> Func {
 		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-			if (name == "!mask{" && beg < end) {
+			if (name == "!and{" && beg < end) {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t sz{};
 					if (Parse::Utils::Convert(beg, end, sz)) {
-						MaskNot(sz);
+						AndNot(sz);
 						beg += std::distance(beg, end);
 					} else {
 						err = 1;
 					}
 				} else {
-					std::cout << "command MaskNot invalid: " + std::string(beg, end) << std::endl;
+					msg = "Command \"AndNot\" invalid: " + std::string(beg, end);
 					err = 1;
 				}
 			}
 		};
 	}
-	// GET FILTER MASK
+	// SPLIT
+	auto Split() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "split{" && beg < end) {
+				if (beg != end) {
+					if (std::count(beg, end, ',') == 0) {
+						uint64_t sz{};
+						if (Parse::Utils::Convert(beg, end, sz)) {
+							Split(sz);
+							beg += std::distance(beg, end);
+						} else {
+							err = 1;
+						}
+					} else {
+						msg = "Command \"Split\" invalid: " + std::string(beg, end);
+						err = 1;
+					}
+				}
+			}
+		};
+	}
+	// SPLIT NOT
+	auto SplitNot() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "!split{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					uint64_t sz{};
+					if (Parse::Utils::Convert(beg, end, sz)) {
+						AndNot(sz);
+						beg += std::distance(beg, end);
+					} else {
+						err = 1;
+					}
+				} else {
+					msg = "Command \"SplitNot\" invalid: " + std::string(beg, end);
+					err = 1;
+				}
+			}
+		};
+	}
+	// GET FILTER AND
 	bool GetFilterMask(ItStr& beg, ItStr& end, uint64_t& out) {
 		bool ret{};
 		auto it = std::search(beg, end,
@@ -349,7 +439,7 @@ struct Parsed {
 				ret = true;
 			}
 		} else {
-			std::cout << "filter arg mask invalid" << std::string(beg,end) << std::endl;
+			msg = "Function \"GetFilterMask\" invalid: " + std::string(beg, end);
 			beg = end;
 		}
 		return ret;
@@ -359,19 +449,19 @@ struct Parsed {
 		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
 			if (name == "insert{[" && beg < end) {
 				auto tmp = beg;
-				bool const res = Parse::Utils::OpForArgsList<uint8_t>(
+				bool const res = Parse::Utils::OpForArgsList(
 					tmp, end, ',',
 					[this] (uint64_t const arg) {
-						return arg < Parse::kMaxChar;
-					});
+						return arg <= Parse::kMaxChar;
+					},msg);
 				if (res) {
 					std::vector<uint8_t> vec{};
-					Parse::Utils::OpForArgsList<uint8_t>(
+					Parse::Utils::OpForArgsList(
 						beg, end, ',',
 						[&vec] (uint8_t const arg) {
 							vec.emplace_back(arg);
 							return true;
-						});
+						},msg);
 					Insert(vec);
 				} else {
 					err = 1;
@@ -387,19 +477,19 @@ struct Parsed {
 							uint8_t& err) {
 			if (name == "replace{[") {
 				auto tmp = beg;
-				bool const res = Parse::Utils::OpForArgsList<uint8_t>(
+				bool const res = Parse::Utils::OpForArgsList(
 					tmp, end, ',',
 					[this] (uint64_t const arg) {
-						return arg < Parse::kMaxChar;
-					});
+						return arg <= Parse::kMaxChar;
+					},msg);
 				if (res) {
 					std::vector<uint8_t> vec{};
-					Parse::Utils::OpForArgsList<uint8_t>(
+					Parse::Utils::OpForArgsList(
 						beg, end, ',',
 						[&vec] (uint8_t const arg) {
 							vec.emplace_back(arg);
 							return true;
-						});
+						},msg);
 					Replace(vec);
 				} else {
 					err = 1;
@@ -413,25 +503,14 @@ struct Parsed {
 			if (name == "filter{" && beg < end) {
 				uint64_t mask{};
 				GetFilterMask(beg, end, mask);
-				auto tmp = beg;
-				bool const res = Parse::Utils::OpForArgsList<uint8_t>(
-					tmp, end, ',',
-					[this] (uint64_t const arg) {
-						return arg < Parse::kMaxChar;
-					});
-				std::vector<uint8_t> vec{};
-				if (res) {
-					std::vector<uint64_t> vec{};
-					Parse::Utils::OpForArgsList<uint8_t>(
-						beg, end, ',',
-						[&vec] (uint64_t const arg) {
-							vec.emplace_back(arg);
-							return true;
-						});
-					Filter(mask, vec);
-				} else {
-					err = 1;
-				}
+				std::vector<uint64_t> vec{};
+				Parse::Utils::OpForArgsList(
+					beg, end, ',',
+					[&vec] (uint64_t const arg) {
+						vec.emplace_back(arg);
+						return true;
+					},msg);
+				Filter(mask, vec);
 			}
 		};
 	}
@@ -445,61 +524,75 @@ struct Parsed {
 				uint64_t mask{};
 				GetFilterMask(beg, end, mask);
 				auto tmp = beg;
-				bool const res = Parse::Utils::OpForArgsList<uint8_t>(
+				bool const res = Parse::Utils::OpForArgsList(
 					tmp, end, ',',
 					[this] (uint64_t const arg) {
-						return arg < Parse::kMaxChar;
-					});
+						return arg <= Parse::kMaxChar;
+					},msg);
 				std::vector<uint8_t> vec{};
 				if (res) {
 					std::vector<uint64_t> vec{};
-					Parse::Utils::OpForArgsList<uint8_t>(
+					Parse::Utils::OpForArgsList(
 						beg, end, ',',
 						[&vec] (uint64_t const arg) {
 							vec.emplace_back(arg);
 							return true;
-						});
+						},msg);
 					FilterNot(mask, vec);
 				} else {
 					err = 1;
 				}
 			}
-			return 0;
 		};
-	}
-	// EQUAL ARGUMENT
-	std::vector<uint64_t> EqArgs(ItStr& beg, ItStr& end) {
-		std::vector<uint64_t> ret{};
-		auto it = std::find(beg, end, ']');
-		if (it < end && beg != it && it[1] == '}') {
-			/* ret = Parse::Utils::Split<uint64_t>(beg, it); */
-			beg = it+1;
-		} else {
-			std::cout << "filter args invalid: " << std::string(beg,end) << std::endl;
-			beg = end;
-		}
-		return ret;
 	}
 	// EQUAL
 	auto Eq() -> Func {
 		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
 			if (name == "eq{[" && beg < end) {
-				auto vec = EqArgs(beg, end);
-				Eq(vec);
-				beg += std::distance(beg, end);
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				if (res) {
+					std::vector<uint64_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint8_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					Eq(vec);
+				} else {
+					err = 1;
+				}
 			}
-			return 0;
 		};
 	}
 	// EQUAL NOT
 	auto EqNot() -> Func {
 		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
 			if (name == "!eq{[" && beg < end) {
-				auto vec = EqArgs(beg, end);
-				EqNot(vec);
-				beg += std::distance(beg, end);
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				if (res) {
+					std::vector<uint64_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint8_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					EqNot(vec);
+				} else {
+					err = 1;
+				}
 			}
-			return 0;
 		};
 	}
 	// SHIFT LEFT IN BITS
@@ -509,7 +602,7 @@ struct Parsed {
 		if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
 			ret.emplace_back(Shit::ShlInBits(arg));
 		} else {
-			std::cout << "arg shlb must be < 8: " << std::to_string(arg) << std::endl;
+			msg = "arg shlb must be < 8: " + std::to_string(arg);
 			err = 1;
 		}
 		return ret;
@@ -523,12 +616,12 @@ struct Parsed {
 					if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
 						this->funcs.back().emplace_back(Shit::ShlInBits(arg));
 					} else {
-						std::cout << "arg shlb must be < 8: " << std::to_string(arg) << std::endl;
+						msg = "arg shlb must be < 8: " + std::to_string(arg);
 						err = 1;
 					}
 					beg += std::distance(beg, end);
 				} else {
-					std::cout << "command \"shlb\" invalid: " << std::string(beg,end) << std::endl;
+					msg = "command \"shlb\" invalid: " + std::string(beg,end);
 				}
 			} 
 		};
@@ -540,14 +633,14 @@ struct Parsed {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t arg{};
 					if (Parse::Utils::Convert(beg, end, arg)) {
-						this->funcs.back().emplace_back(Shit::Check::OutOfRangeLeft(arg));
+						this->funcs.back().emplace_back(Shit::Check::OutOfRangeLeft(arg, msg));
 						this->funcs.back().emplace_back(Shit::Shl(arg));
 						beg += std::distance(beg, end);
 					} else {
 						err = 1;
 					}
 				} else {
-					std::cout << "command \"shl\" invalid: " << std::string(beg,end) << std::endl;
+					msg = "command \"shl\" invalid: " + std::string(beg,end);
 					err = 1;
 				}
 			} 
@@ -560,7 +653,7 @@ struct Parsed {
 		if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
 			ret.emplace_back(Shit::ShrInBits(arg));
 		} else {
-			std::cout << "arg shrb must be < 8: " << std::to_string(arg) << std::endl;
+			msg = "arg shrb must be < 8: " + std::to_string(arg);
 			err = 1;
 		}
 		return ret;
@@ -578,7 +671,7 @@ struct Parsed {
 					}
 					beg += std::distance(beg, end);
 				} else {
-					std::cout << "command \"shrb\" invalid: " << std::string(beg,end) << std::endl;
+					msg = "command \"shrb\" invalid: " + std::string(beg,end);
 					err = 1;
 				}
 			} 
@@ -591,14 +684,14 @@ struct Parsed {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t arg{};
 					if (Parse::Utils::Convert(beg, end, arg)) {
-						this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(arg));
+						this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(arg, msg));
 						this->funcs.back().emplace_back(Shit::Shr(arg));
 						beg += std::distance(beg, end);
 					} else {
 						err = 1;
 					}
 				} else {
-					std::cout << "command \"shr\" invalid: " << std::string(beg,end) << std::endl;
+					msg = "command \"shr\" invalid: " + std::string(beg,end);
 					err = 1;
 				}
 			}
@@ -635,7 +728,8 @@ struct Parsed {
 						this->funcs.back().emplace_back(
 							Shit::Check::OutOfRange(std::get<0>(args),
 															std::get<1>(args),
-															counter));
+															counter,
+															msg));
 						this->funcs.back().emplace_back(
 							Shit::Crop(std::get<0>(args), std::get<1>(args)));
 						beg += std::distance(beg, end);
@@ -643,7 +737,7 @@ struct Parsed {
 						err = 1;
 					}
 				} else {
-					std::cout << "command \"crop\" invalid: " << std::string(beg,end) << std::endl;
+					msg = "command \"crop\" invalid: " + std::string(beg,end);
 					err = 1;
 				}
 			}
@@ -688,7 +782,7 @@ struct Parsed {
 						if (!command.empty()) {
 							beg += name.size();
 							auto end_arg = std::find(beg, end, '}');
-							for_tuple(ts, command, beg, end_arg, err);
+                            for_tuple(ts, command, beg, end_arg, err);
 							if (err == 1) {
 								return;
 							}
@@ -709,6 +803,9 @@ struct Parsed {
 						 std::ofstream& dst,
 						 uint8_t& err,
 						 size_t& num_pck) {
+		std::transform(str.begin(), str.end(),
+							str.begin(),
+							[] (char c) {return std::tolower(c);});
 		Parse::Utils::RemoveUnusedChars(str);
 		auto exec = std::search(str.begin(), str.end(),
 										Parse::kExec.begin(), Parse::kExec.end());
@@ -717,11 +814,12 @@ struct Parsed {
 			auto commands = Commands(Crop(num_pck),
 											 Shr(),ShrInBits(),
 											 Shl(),ShlInBits(),
-											 Insert(),
-											 Replace(),
 											 Eq(),EqNot(),
 											 Filter(),FilterNot(),
-											 Mask(),MaskNot());
+											 And(),AndNot(),
+											 Split(),SplitNot(),
+											 Insert(),
+											 Replace());
 			auto beg = exec + Parse::kExec.size();
 			auto end = std::search(beg, str.end(),
 										  Parse::kExecEnd.begin(), Parse::kExecEnd.end());
@@ -739,8 +837,9 @@ struct Parsed {
 		}
 	}
 	// RUN EDIT
-	void RunEdit(uint8_t* pbeg, size_t const sz) {
-		insert_sz = 0;
+	bool RunEdit(uint8_t* pbeg, size_t const sz) {
+		bool ret{true};
+		lid = 0;
 		for (auto& execs : funcs) {
 			std::vector<uint8_t> buf(sz + 2);
 			std::copy(pbeg, pbeg + sz, buf.begin() + 1);
@@ -750,45 +849,52 @@ struct Parsed {
 			for (auto& func : execs) {
 				bool const state{func(&pbeg, &pend)};
 				if (!state) {
-					Shit::CleanOffset(Parse::offset);
+					ret = false;
 					break;
 				}
 			}
-			Shit::CleanOffset(Parse::offset);
+			offset = 0;
 		}
+		return ret;
 	}
 	// RUN INSERT
-	void RunInsert(uint8_t* pbeg, size_t const sz) {
+	bool RunInsert(uint8_t* pbeg, size_t const sz) {
+		bool ret{true};
+		lid = 0;
 		for (auto& execs : funcs) {
 			std::vector<uint8_t> buf(insert_sz + sz);
-			std::copy(pbeg, pbeg + sz, buf.begin() + this->insert_sz);
-			uint8_t* pbeg{buf.data() + insert_sz};
-			uint8_t* pend(pbeg + buf.size());
-			Shit::Init(pbeg - insert_sz, pend);
+			std::copy(pbeg, pbeg + sz, buf.begin());
+			uint8_t* pbeg{buf.data()};
+			uint8_t* pend(pbeg + sz);
+			Shit::Init(pbeg, pend + insert_sz);
 			for (auto& func : execs) {
 				bool const state{func(&pbeg, &pend)};
 				if (!state) {
-					Shit::CleanOffset(Parse::offset);
+					ret = false;
 					break;
 				}
 			}
+			offset = 0;
 		}
-		Shit::CleanOffset(Parse::offset);
+		return ret;
 	}
 	// RUN
-	void Run(uint8_t* pbeg, size_t const sz) {
+	bool Run(uint8_t* pbeg, size_t const sz) {
+		bool ret{true};
+		lid = 0;
 		for (auto& execs : funcs) {
 			uint8_t* pend{pbeg + sz - 1};
 			Shit::Init(pbeg, pend);
 			for (auto& func : execs) {
 				bool const state{func(&pbeg, &pend)};
 				if (!state) {
-					Shit::CleanOffset(Parse::offset);
+					ret = false;
 					break;
 				}
 			}
-			Shit::CleanOffset(Parse::offset);
+			offset = 0;
 		}
+		return ret;
 	}
 };
 

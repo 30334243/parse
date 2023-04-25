@@ -4,19 +4,20 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <cstdint>
 
 namespace Parse {
 	// CONSTANTS
-	static std::string const kExec{"exec("};
+    static std::string const kExec{"exec("};
 	static std::string const kExecEnd{");"};
 	static std::string const kFilterMask{",["};
-	static std::string const kHex{"0x"};
+    static std::string const kHex{"0x"};
 	static std::string const kBin{"0b"};
 	static std::string const kInsert{"insert{"};
-	static size_t const kMaxChar{(size_t)256};
-	static size_t const kMaxShort{(size_t)(int16_t)-1};
-	static size_t const kMaxInt{(size_t)(int32_t)-1};
-	static size_t const kMaxLong{(size_t)(uint64_t)-1};
+	static size_t const kMaxChar{(size_t)0xFF};
+	static size_t const kMaxShort{(size_t)0xFFFF};
+	static size_t const kMaxInt{(size_t)0xFFFFFFFF};
+	static size_t const kMaxLong{(size_t)0xFFFFFFFFFFFFFFFF};
 	static uint8_t const kHexBase{16};
 	static uint8_t const kBinBase{2};
 	static uint8_t const kDecBase{10};
@@ -24,20 +25,18 @@ namespace Parse {
 		"crop{","cropb{",
 			"shr{","shrb{",
 			"shl{","shlb{",
-			"insert{[",
-			"replace{[",
-			"mask{","!mask{",
+			"and{","!and{",
+			"split{","!split{",
 			"filter{","!filter{",
 			"eq{[","!eq{[",
+			"insert{[",
+			"replace{[",
 	};
 	std::vector<std::string> const kEditableFuncs{
-		"cropb{",
+		"crop{","cropb{",
 			"shrb{",
 			"shlb{",
 	};
-	// MEMBERS
-	static uint64_t lid{};
-	static uint8_t offset{};
 	// USING
 	using ItStr = std::string::iterator;
 	using Func = std::function<void(std::string const&,ItStr&,ItStr&,uint8_t&)>;
