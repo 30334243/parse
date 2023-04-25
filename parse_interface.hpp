@@ -13,7 +13,7 @@ namespace Parse {
 	static std::string const kHex{"0x"};
 	static std::string const kBin{"0b"};
 	static std::string const kInsert{"insert{"};
-	static size_t const kMaxChar{(size_t)(int8_t)-1};
+	static size_t const kMaxChar{(size_t)256};
 	static size_t const kMaxShort{(size_t)(int16_t)-1};
 	static size_t const kMaxInt{(size_t)(int32_t)-1};
 	static size_t const kMaxLong{(size_t)(uint64_t)-1};
@@ -25,6 +25,7 @@ namespace Parse {
 			"shr{","shrb{",
 			"shl{","shlb{",
 			"insert{[",
+			"replace{[",
 			"mask{","!mask{",
 			"filter{","!filter{",
 			"eq{[","!eq{[",
