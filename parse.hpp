@@ -150,7 +150,7 @@ struct Parsed {
 	std::string msg{};
 	uint64_t insert_sz{};
 	uint64_t lid{};
-	uint8_t offset{};
+	size_t offset{};
 	// AND
 	void And(uint64_t const sz) {
 		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
@@ -199,6 +199,7 @@ struct Parsed {
 	}
 	// SPLIT
 	void Split(uint64_t const sz) {
+		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
 		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(
 				Shit::Split((uint8_t)sz,
@@ -218,10 +219,10 @@ struct Parsed {
 		} else {
 			msg = "unknown base: " + std::to_string(sz);
 		}
-		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
 	}
 	// SPLIT NOT
 	void SplitNot(uint64_t const sz) {
+		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
 		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(
 				Shit::SplitNot((uint8_t)sz,
@@ -241,7 +242,6 @@ struct Parsed {
 		} else {
 			msg = "unknown base: " + std::to_string(sz);
 		}
-		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
 	}
 	// INSERT
 	void Insert(std::vector<uint8_t> const& args) {
@@ -306,7 +306,7 @@ struct Parsed {
 	}
 	// EQUAL
 	void Eq(std::vector<uint64_t> const& args) {
-		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
+		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
 		size_t const sz{args[0]};
 		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(Shit::Eq<uint8_t>(args,
@@ -326,7 +326,7 @@ struct Parsed {
 	}
 	// EQUAL NOT
 	void EqNot(std::vector<uint64_t> const& args) {
-		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
+		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
 		size_t const sz{args[0]};
 		if (sz <= Parse::kMaxChar) {
 			this->funcs.back().emplace_back(
@@ -416,7 +416,7 @@ struct Parsed {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t sz{};
 					if (Parse::Utils::Convert(beg, end, sz)) {
-						AndNot(sz);
+						SplitNot(sz);
 						beg += std::distance(beg, end);
 					} else {
 						err = 1;
@@ -595,18 +595,6 @@ struct Parsed {
 			}
 		};
 	}
-	// SHIFT LEFT IN BITS
-	std::list<Shit::Func> ShlInBits(ItStr& beg, ItStr& end, uint8_t& err) {
-		std::list<Shit::Func> ret{};
-		uint64_t arg{};
-		if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
-			ret.emplace_back(Shit::ShlInBits(arg));
-		} else {
-			msg = "arg shlb must be < 8: " + std::to_string(arg);
-			err = 1;
-		}
-		return ret;
-	}
 	// SHIFT LEFT BITS
 	auto ShlInBits() -> Func {
 		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
@@ -614,6 +602,7 @@ struct Parsed {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t arg{};
 					if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
+						++this->insert_sz;
 						this->funcs.back().emplace_back(Shit::ShlInBits(arg));
 					} else {
 						msg = "arg shlb must be < 8: " + std::to_string(arg);
@@ -646,18 +635,6 @@ struct Parsed {
 			} 
 		};
 	}
-	// SHIFT RIGHT IN BITS
-	std::list<Shit::Func> ShrInBits(ItStr& beg, ItStr& end, uint8_t& err) {
-		std::list<Shit::Func> ret{};
-		uint64_t arg{};
-		if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
-			ret.emplace_back(Shit::ShrInBits(arg));
-		} else {
-			msg = "arg shrb must be < 8: " + std::to_string(arg);
-			err = 1;
-		}
-		return ret;
-	}
 	// SHIFT RIGHT BITS
 	auto ShrInBits() -> Func {
 		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
@@ -665,8 +642,10 @@ struct Parsed {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t arg{};
 					if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
+						++this->insert_sz;
 						this->funcs.back().emplace_back(Shit::ShrInBits(arg));
 					} else {
+						msg = "arg \"shrb\" must be < 8: " + std::to_string(arg);
 						err = 1;
 					}
 					beg += std::distance(beg, end);
@@ -800,7 +779,8 @@ struct Parsed {
 		}
 	// CONSTRUCTOR
 	explicit Parsed(std::string str,
-						 std::ofstream& dst,
+						 /* std::ofstream& dst, */
+						 std::vector<uint8_t>& vec,
 						 uint8_t& err,
 						 size_t& num_pck) {
 		std::transform(str.begin(), str.end(),
@@ -823,16 +803,22 @@ struct Parsed {
 			auto beg = exec + Parse::kExec.size();
 			auto end = std::search(beg, str.end(),
 										  Parse::kExecEnd.begin(), Parse::kExecEnd.end());
-			while (beg < end) {
-				commands(beg, end, err);
-				if (err == 1) {
-					break;
+			if (end == str.end()) {
+				msg = "Missing \")\"";
+				exec = end;
+			} else {
+				while (beg < end) {
+					commands(beg, end, err);
+					if (err == 1) {
+						break;
+					}
 				}
-			}
-			exec = std::search(end, str.end(),
-									 Parse::kExec.begin(), Parse::kExec.end());
-			if (err == 0) {
-				this->funcs.back().emplace_back(Shit::Write<Shit::kSig>(dst));
+				exec = std::search(end, str.end(),
+										 Parse::kExec.begin(), Parse::kExec.end());
+				if (err == 0) {
+					/* this->funcs.back().emplace_back(Shit::Write<Shit::kSig>(dst)); */
+					this->funcs.back().emplace_back(Shit::Test(vec));
+				}
 			}
 		}
 	}
@@ -883,7 +869,7 @@ struct Parsed {
 		bool ret{true};
 		lid = 0;
 		for (auto& execs : funcs) {
-			uint8_t* pend{pbeg + sz - 1};
+			uint8_t* pend{pbeg + sz};
 			Shit::Init(pbeg, pend);
 			for (auto& func : execs) {
 				bool const state{func(&pbeg, &pend)};
