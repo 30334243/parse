@@ -254,6 +254,16 @@ struct Parsed {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(args.size(), msg));
 		this->funcs.back().emplace_back(Shit::Replace(args));
 	}
+	// XOR
+	void Xor(std::vector<uint8_t> const& args) {
+		this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(args.size(), msg));
+		this->funcs.back().emplace_back(Shit::Xor(args));
+	}
+	// MOD
+	void Mod(std::vector<uint8_t> const& args) {
+		this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(args.size(), msg));
+		this->funcs.back().emplace_back(Shit::Mod(args));
+	}
 	// FILTER
 	void Filter(uint64_t const sz, std::vector<uint64_t> const& args) {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
@@ -348,6 +358,64 @@ struct Parsed {
 			msg = "unknown base: " + std::to_string(sz);
 		}
 	}
+	// INVERSION
+	auto Inversion() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "inversion{}") {
+				this->funcs.back().emplace_back(Shit::Inversion());
+			}
+		};
+	}
+	// MOD
+	auto Mod() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "mod{[") {
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				if (res) {
+					std::vector<uint8_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint8_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					Mod(vec);
+				} else {
+					err = 1;
+				}
+			}
+		};
+	}
+	// XOR
+	auto Xor() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "xor{[") {
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				if (res) {
+					std::vector<uint8_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint8_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					Xor(vec);
+				} else {
+					err = 1;
+				}
+			}
+		};
+	}
 	// AND
 	auto And() -> Func {
 		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
@@ -388,340 +456,340 @@ struct Parsed {
 			}
 		};
 	}
-    // SPLIT
-    auto Split() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "split{" && beg < end) {
-                if (beg != end) {
-                    if (std::count(beg, end, ',') == 0) {
-                        uint64_t sz{};
-                        if (Parse::Utils::Convert(beg, end, sz)) {
-                            Split(sz);
-                            beg += std::distance(beg, end);
-                        } else {
-                            err = 1;
-                        }
-                    } else {
-                        msg = "Command \"Split\" invalid: " + std::string(beg, end);
-                        err = 1;
-                    }
-                }
-            }
-        };
-    }
-    // SPLIT NOT
-    auto SplitNot() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "!split{" && beg < end) {
-                if (std::count(beg, end, ',') == 0) {
-                    uint64_t sz{};
-                    if (Parse::Utils::Convert(beg, end, sz)) {
-                        SplitNot(sz);
-                        beg += std::distance(beg, end);
-                    } else {
-                        err = 1;
-                    }
-                } else {
-                    msg = "Command \"SplitNot\" invalid: " + std::string(beg, end);
-                    err = 1;
-                }
-            }
-        };
-    }
-    // GET FILTER AND
-    bool GetFilterMask(ItStr& beg, ItStr& end, uint64_t& out) {
-        bool ret{};
-        auto it = std::search(beg, end,
-                                     Parse::kFilterMask.begin(), Parse::kFilterMask.end());
-        if (it < end) {
-            if (Parse::Utils::Convert(beg, it, out)) {
-                beg = it + Parse::kFilterMask.size();
-                ret = true;
-            }
-        } else {
-            msg = "Function \"GetFilterMask\" invalid: " + std::string(beg, end);
-            beg = end;
-        }
-        return ret;
-    }
-    // INSERT
-    auto Insert() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "insert{[" && beg < end) {
-                auto tmp = beg;
-                bool const res = Parse::Utils::OpForArgsList(
-                    tmp, end, ',',
-                    [this] (uint64_t const arg) {
-                        return arg <= Parse::kMaxChar;
-                    },msg);
-                if (res) {
-                    std::vector<uint8_t> vec{};
-                    Parse::Utils::OpForArgsList(
-                        beg, end, ',',
-                        [&vec] (uint8_t const arg) {
-                            vec.emplace_back(arg);
-                            return true;
-                        },msg);
-                    Insert(vec);
-                } else {
-                    err = 1;
-                }
-            }
-        };
-    }
-    // REPLACE
-    auto Replace() -> Func {
-        return [this] (std::string const& name,
-                            ItStr& beg,
-                            ItStr& end,
-                            uint8_t& err) {
-            if (name == "replace{[") {
-                auto tmp = beg;
-                bool const res = Parse::Utils::OpForArgsList(
-                    tmp, end, ',',
-                    [this] (uint64_t const arg) {
-                        return arg <= Parse::kMaxChar;
-                    },msg);
-                if (res) {
-                    std::vector<uint8_t> vec{};
-                    Parse::Utils::OpForArgsList(
-                        beg, end, ',',
-                        [&vec] (uint8_t const arg) {
-                            vec.emplace_back(arg);
-                            return true;
-                        },msg);
-                    Replace(vec);
-                } else {
-                    err = 1;
-                }
-            }
-        };
-    }
-    // FILTER
-    auto Filter() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "filter{" && beg < end) {
-                uint64_t mask{};
-                GetFilterMask(beg, end, mask);
-                std::vector<uint64_t> vec{};
-                Parse::Utils::OpForArgsList(
-                    beg, end, ',',
-                    [&vec] (uint64_t const arg) {
-                        vec.emplace_back(arg);
-                        return true;
-                    },msg);
-                Filter(mask, vec);
-            }
-        };
-    }
-    // FILTER NOT
-    auto FilterNot() -> Func {
-        return [this] (std::string const& name,
-                            ItStr& beg,
-                            ItStr& end,
-                            uint8_t& err) {
-            if (name == "!filter{" && beg < end) {
-                uint64_t mask{};
-                GetFilterMask(beg, end, mask);
-                auto tmp = beg;
-                bool const res = Parse::Utils::OpForArgsList(
-                    tmp, end, ',',
-                    [this] (uint64_t const arg) {
-                        return arg <= Parse::kMaxChar;
-                    },msg);
-                std::vector<uint8_t> vec{};
-                if (res) {
-                    std::vector<uint64_t> vec{};
-                    Parse::Utils::OpForArgsList(
-                        beg, end, ',',
-                        [&vec] (uint64_t const arg) {
-                            vec.emplace_back(arg);
-                            return true;
-                        },msg);
-                    FilterNot(mask, vec);
-                } else {
-                    err = 1;
-                }
-            }
-        };
-    }
-    // EQUAL
-    auto Eq() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "eq{[" && beg < end) {
-                auto tmp = beg;
-                bool const res = Parse::Utils::OpForArgsList(
-                    tmp, end, ',',
-                    [this] (uint64_t const arg) {
-                        return arg <= Parse::kMaxChar;
-                    },msg);
-                if (res) {
-                    std::vector<uint64_t> vec{};
-                    Parse::Utils::OpForArgsList(
-                        beg, end, ',',
-                        [&vec] (uint8_t const arg) {
-                            vec.emplace_back(arg);
-                            return true;
-                        },msg);
-                    Eq(vec);
-                } else {
-                    err = 1;
-                }
-            }
-        };
-    }
-    // EQUAL NOT
-    auto EqNot() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "!eq{[" && beg < end) {
-                auto tmp = beg;
-                bool const res = Parse::Utils::OpForArgsList(
-                    tmp, end, ',',
-                    [this] (uint64_t const arg) {
-                        return arg <= Parse::kMaxChar;
-                    },msg);
-                if (res) {
-                    std::vector<uint64_t> vec{};
-                    Parse::Utils::OpForArgsList(
-                        beg, end, ',',
-                        [&vec] (uint8_t const arg) {
-                            vec.emplace_back(arg);
-                            return true;
-                        },msg);
-                    EqNot(vec);
-                } else {
-                    err = 1;
-                }
-            }
-        };
-    }
-    // SHIFT LEFT BITS
-    auto ShlInBits() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "shlb{" && beg < end) {
-                if (std::count(beg, end, ',') == 0) {
-                    uint64_t arg{};
-                    if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
-                        this->funcs.back().emplace_back(Shit::ShlInBits(arg));
-                    } else {
-                        msg = "arg shlb must be < 8: " + std::to_string(arg);
-                        err = 1;
-                    }
-                    beg += std::distance(beg, end);
-                } else {
-                    msg = "command \"shlb\" invalid: " + std::string(beg,end);
-                }
-            }
-        };
-    }
-    // SHIFT LEFT
-    auto Shl() -> Func {
-        return [this] (std::string const& name,ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "shl{" && beg < end) {
-                if (std::count(beg, end, ',') == 0) {
-                    uint64_t arg{};
-                    if (Parse::Utils::Convert(beg, end, arg)) {
-                        this->funcs.back().emplace_back(Shit::Check::OutOfRangeLeft(arg, msg));
-                        this->funcs.back().emplace_back(Shit::Shl(arg));
-                        beg += std::distance(beg, end);
-                    } else {
-                        err = 1;
-                    }
-                } else {
-                    msg = "command \"shl\" invalid: " + std::string(beg,end);
-                    err = 1;
-                }
-            }
-        };
-    }
-    // SHIFT RIGHT BITS
-    auto ShrInBits() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "shrb{" && beg < end) {
-                if (std::count(beg, end, ',') == 0) {
-                    uint64_t arg{};
-                    if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
-                        ++this->insert_sz;
-                        this->funcs.back().emplace_back(Shit::ShrInBits(arg));
-                    } else {
-                        msg = "arg \"shrb\" must be < 8: " + std::to_string(arg);
-                        err = 1;
-                    }
-                    beg += std::distance(beg, end);
-                } else {
-                    msg = "command \"shrb\" invalid: " + std::string(beg,end);
-                    err = 1;
-                }
-            }
-        };
-    }
-    // SHIFT RIGHT
-    auto Shr() -> Func {
-        return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            if (name == "shr{" && beg < end) {
-                if (std::count(beg, end, ',') == 0) {
-                    uint64_t arg{};
-                    if (Parse::Utils::Convert(beg, end, arg)) {
-                        this->insert_sz += arg;
-                        this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(arg, msg));
-                        this->funcs.back().emplace_back(Shit::Shr(arg));
-                        beg += std::distance(beg, end);
-                    } else {
-                        err = 1;
-                    }
-                } else {
-                    msg = "command \"shr\" invalid: " + std::string(beg,end);
-                    err = 1;
-                }
-            }
-        };
-    }
-    // CROP ARGUMENTS
-    bool CropArgs(ItStr& beg, ItStr& end, std::tuple<size_t,size_t>& out) {
-        bool ret{};
-        auto first = std::find(beg, end, ',');
-        uint64_t arg_beg{};
-        uint64_t arg_end{};
-        if (first < end &&
-             Parse::Utils::Convert(beg, first, arg_beg)) {
-            ++first;
-            if (Parse::Utils::Convert(first, end, arg_end)) {
-                out = std::make_tuple(arg_beg, arg_end);
-                ret = true;
-            }
-        }
-        return ret;
-    }
-    // CROP
-    auto Crop(size_t& counter) -> Func {
-        return [this, &counter] (std::string const& name,
-                                         ItStr& beg,
-                                         ItStr& end,
-                                         uint8_t& err) {
-            if (name == "crop{" && beg < end) {
-                if (std::count(beg, end, ',') == 1) {
-                    std::tuple<size_t,size_t> args{};
-                    auto tmp_beg = beg;
-                    auto tmp_end = end;
-                    if (CropArgs(beg, end, args)) {
-                        this->funcs.back().emplace_back(
-                            Shit::Check::OutOfRange(std::get<0>(args),
-                                                            std::get<1>(args),
-                                                            counter,
-                                                            msg));
-                        this->funcs.back().emplace_back(
-                            Shit::Crop(std::get<0>(args), std::get<1>(args)));
-                        beg += std::distance(beg, end);
-                    } else {
-                        err = 1;
-                    }
-                } else {
-                    msg = "command \"crop\" invalid: " + std::string(beg,end);
-                    err = 1;
-                }
-            }
-        };
-    }
+	// SPLIT
+	auto Split() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "split{" && beg < end) {
+				if (beg != end) {
+					if (std::count(beg, end, ',') == 0) {
+						uint64_t sz{};
+						if (Parse::Utils::Convert(beg, end, sz)) {
+							Split(sz);
+							beg += std::distance(beg, end);
+						} else {
+							err = 1;
+						}
+					} else {
+						msg = "Command \"Split\" invalid: " + std::string(beg, end);
+						err = 1;
+					}
+				}
+			}
+		};
+	}
+	// SPLIT NOT
+	auto SplitNot() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "!split{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					uint64_t sz{};
+					if (Parse::Utils::Convert(beg, end, sz)) {
+						SplitNot(sz);
+						beg += std::distance(beg, end);
+					} else {
+						err = 1;
+					}
+				} else {
+					msg = "Command \"SplitNot\" invalid: " + std::string(beg, end);
+					err = 1;
+				}
+			}
+		};
+	}
+	// GET FILTER AND
+	bool GetFilterMask(ItStr& beg, ItStr& end, uint64_t& out) {
+		bool ret{};
+		auto it = std::search(beg, end,
+									 Parse::kFilterMask.begin(), Parse::kFilterMask.end());
+		if (it < end) {
+			if (Parse::Utils::Convert(beg, it, out)) {
+				beg = it + Parse::kFilterMask.size();
+				ret = true;
+			}
+		} else {
+			msg = "Function \"GetFilterMask\" invalid: " + std::string(beg, end);
+			beg = end;
+		}
+		return ret;
+	}
+	// INSERT
+	auto Insert() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "insert{[" && beg < end) {
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				if (res) {
+					std::vector<uint8_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint8_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					Insert(vec);
+				} else {
+					err = 1;
+				}
+			}
+		};
+	}
+	// REPLACE
+	auto Replace() -> Func {
+		return [this] (std::string const& name,
+							ItStr& beg,
+							ItStr& end,
+							uint8_t& err) {
+			if (name == "replace{[") {
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				if (res) {
+					std::vector<uint8_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint8_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					Replace(vec);
+				} else {
+					err = 1;
+				}
+			}
+		};
+	}
+	// FILTER
+	auto Filter() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "filter{" && beg < end) {
+				uint64_t mask{};
+				GetFilterMask(beg, end, mask);
+				std::vector<uint64_t> vec{};
+				Parse::Utils::OpForArgsList(
+					beg, end, ',',
+					[&vec] (uint64_t const arg) {
+						vec.emplace_back(arg);
+						return true;
+					},msg);
+				Filter(mask, vec);
+			}
+		};
+	}
+	// FILTER NOT
+	auto FilterNot() -> Func {
+		return [this] (std::string const& name,
+							ItStr& beg,
+							ItStr& end,
+							uint8_t& err) {
+			if (name == "!filter{" && beg < end) {
+				uint64_t mask{};
+				GetFilterMask(beg, end, mask);
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				std::vector<uint8_t> vec{};
+				if (res) {
+					std::vector<uint64_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint64_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					FilterNot(mask, vec);
+				} else {
+					err = 1;
+				}
+			}
+		};
+	}
+	// EQUAL
+	auto Eq() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "eq{[" && beg < end) {
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				if (res) {
+					std::vector<uint64_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint8_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					Eq(vec);
+				} else {
+					err = 1;
+				}
+			}
+		};
+	}
+	// EQUAL NOT
+	auto EqNot() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "!eq{[" && beg < end) {
+				auto tmp = beg;
+				bool const res = Parse::Utils::OpForArgsList(
+					tmp, end, ',',
+					[this] (uint64_t const arg) {
+						return arg <= Parse::kMaxChar;
+					},msg);
+				if (res) {
+					std::vector<uint64_t> vec{};
+					Parse::Utils::OpForArgsList(
+						beg, end, ',',
+						[&vec] (uint8_t const arg) {
+							vec.emplace_back(arg);
+							return true;
+						},msg);
+					EqNot(vec);
+				} else {
+					err = 1;
+				}
+			}
+		};
+	}
+	// SHIFT LEFT BITS
+	auto ShlInBits() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "shlb{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					uint64_t arg{};
+					if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
+						this->funcs.back().emplace_back(Shit::ShlInBits(arg));
+					} else {
+						msg = "arg shlb must be < 8: " + std::to_string(arg);
+						err = 1;
+					}
+					beg += std::distance(beg, end);
+				} else {
+					msg = "command \"shlb\" invalid: " + std::string(beg,end);
+				}
+			}
+		};
+	}
+	// SHIFT LEFT
+	auto Shl() -> Func {
+		return [this] (std::string const& name,ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "shl{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					uint64_t arg{};
+					if (Parse::Utils::Convert(beg, end, arg)) {
+						this->funcs.back().emplace_back(Shit::Check::OutOfRangeLeft(arg, msg));
+						this->funcs.back().emplace_back(Shit::Shl(arg));
+						beg += std::distance(beg, end);
+					} else {
+						err = 1;
+					}
+				} else {
+					msg = "command \"shl\" invalid: " + std::string(beg,end);
+					err = 1;
+				}
+			}
+		};
+	}
+	// SHIFT RIGHT BITS
+	auto ShrInBits() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "shrb{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					uint64_t arg{};
+					if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
+						++this->insert_sz;
+						this->funcs.back().emplace_back(Shit::ShrInBits(arg));
+					} else {
+						msg = "arg \"shrb\" must be < 8: " + std::to_string(arg);
+						err = 1;
+					}
+					beg += std::distance(beg, end);
+				} else {
+					msg = "command \"shrb\" invalid: " + std::string(beg,end);
+					err = 1;
+				}
+			}
+		};
+	}
+	// SHIFT RIGHT
+	auto Shr() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			if (name == "shr{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					uint64_t arg{};
+					if (Parse::Utils::Convert(beg, end, arg)) {
+						this->insert_sz += arg;
+						this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(arg, msg));
+						this->funcs.back().emplace_back(Shit::Shr(arg));
+						beg += std::distance(beg, end);
+					} else {
+						err = 1;
+					}
+				} else {
+					msg = "command \"shr\" invalid: " + std::string(beg,end);
+					err = 1;
+				}
+			}
+		};
+	}
+	// CROP ARGUMENTS
+	bool CropArgs(ItStr& beg, ItStr& end, std::tuple<size_t,size_t>& out) {
+		bool ret{};
+		auto first = std::find(beg, end, ',');
+		uint64_t arg_beg{};
+		uint64_t arg_end{};
+		if (first < end &&
+			 Parse::Utils::Convert(beg, first, arg_beg)) {
+			++first;
+			if (Parse::Utils::Convert(first, end, arg_end)) {
+				out = std::make_tuple(arg_beg, arg_end);
+				ret = true;
+			}
+		}
+		return ret;
+	}
+	// CROP
+	auto Crop(size_t& counter) -> Func {
+		return [this, &counter] (std::string const& name,
+										 ItStr& beg,
+										 ItStr& end,
+										 uint8_t& err) {
+			if (name == "crop{" && beg < end) {
+				if (std::count(beg, end, ',') == 1) {
+					std::tuple<size_t,size_t> args{};
+					auto tmp_beg = beg;
+					auto tmp_end = end;
+					if (CropArgs(beg, end, args)) {
+						this->funcs.back().emplace_back(
+							Shit::Check::OutOfRange(std::get<0>(args),
+															std::get<1>(args),
+															counter,
+															msg));
+						this->funcs.back().emplace_back(
+							Shit::Crop(std::get<0>(args), std::get<1>(args)));
+						beg += std::distance(beg, end);
+					} else {
+						err = 1;
+					}
+				} else {
+					msg = "command \"crop\" invalid: " + std::string(beg,end);
+					err = 1;
+				}
+			}
+		};
+	}
 	// GET COMMAND
 	std::string GetCommand(std::string const& name, ItStr& beg, ItStr& end) {
 		std::string ret{};
@@ -733,24 +801,24 @@ struct Parsed {
 		}
 		return ret;
 	}
-    // FOR TUPLE EMPTY
-    template <size_t I = 0, typename Ts>
-         typename std::enable_if<(I == std::tuple_size<Ts>::value), void>::type
-        for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            return;
-        }
-    // FOR TUPLE
-    template <size_t I = 0, typename Ts>
-         typename std::enable_if<(I < std::tuple_size<Ts>::value), void>::type
-        for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-            std::get<I>(tup)(name, beg, end, err);
-            if (err == 0) {
-                for_tuple<I + 1, Ts>(tup, name, beg, end, err);
-            }
-        }
+	// FOR TUPLE EMPTY
+	template <size_t I = 0, typename Ts>
+		typename std::enable_if<(I == std::tuple_size<Ts>::value), void>::type
+		for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			return;
+		}
+	// FOR TUPLE
+	template <size_t I = 0, typename Ts>
+		typename std::enable_if<(I < std::tuple_size<Ts>::value), void>::type
+		for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+			std::get<I>(tup)(name, beg, end, err);
+			if (err == 0) {
+				for_tuple<I + 1, Ts>(tup, name, beg, end, err);
+			}
+		}
 	// COMMANDS
 	template<class... ArgsTuple>
-        auto Commands(ArgsTuple... args_tuple) ->
+		auto Commands(ArgsTuple... args_tuple) ->
 		std::function<void(ItStr&,ItStr&,uint8_t&)> {
 			return [this, args_tuple...] (ItStr& beg, ItStr& end, uint8_t& err) {
 				std::tuple<ArgsTuple...> ts{args_tuple...};
@@ -761,9 +829,9 @@ struct Parsed {
 						if (!command.empty()) {
 							beg += name.size();
 							auto end_arg = std::find(beg, end, '}');
-                            for_tuple(ts, command, beg, end_arg, err);
+							for_tuple(ts, command, beg, end_arg, err);
 							if (err == 1) {
-                                return;
+								return;
 							}
 							beg += 2;
 							break;
@@ -772,7 +840,7 @@ struct Parsed {
 					if (command.empty()) {
 						beg = end;
 						err = 1;
-                        return;
+						return;
 					}
 				}
 			};
@@ -791,26 +859,27 @@ struct Parsed {
 										Parse::kExec.begin(), Parse::kExec.end());
 		while (exec != str.end()) {
 			this->funcs.emplace_back(std::list<Shit::Func>{});
-            auto commands = Commands(
-                        Crop(num_pck),
-                                             Shr(),ShrInBits(),
-                                             Shl(),ShlInBits(),
-                                             Eq(),EqNot(),
-                                             Filter(),FilterNot(),
-                                             And(),AndNot(),
-                                             Split(),SplitNot(),
-                                             Insert(),
-                                             Replace()
-                                     );
+			auto commands = Commands(
+				Crop(num_pck),
+				Shr(),ShrInBits(),
+				Shl(),ShlInBits(),
+				Eq(),EqNot(),
+				Filter(),FilterNot(),
+				And(),AndNot(),
+				Split(),SplitNot(),
+				Insert(),
+				Replace(),Xor(),Mod(),
+				Inversion()
+				);
 			auto beg = exec + Parse::kExec.size();
 			auto end = std::search(beg, str.end(),
 										  Parse::kExecEnd.begin(), Parse::kExecEnd.end());
 			if (end == str.end()) {
-				msg = "Missing \")\"";
+				msg = "Missing \")\" or \";\"";
 				exec = end;
 			} else {
 				while (beg < end) {
-                    commands(beg, end, err);
+					commands(beg, end, err);
 					if (err == 1) {
 						break;
 					}
@@ -823,27 +892,6 @@ struct Parsed {
 				}
 			}
 		}
-	}
-	// RUN EDIT
-	bool RunEdit(uint8_t* pbeg, size_t const sz) {
-		bool ret{true};
-		lid = 0;
-		for (auto& execs : funcs) {
-			std::vector<uint8_t> buf(sz + 2);
-			std::copy(pbeg, pbeg + sz, buf.begin() + 1);
-			uint8_t* pbeg{buf.data()+1};
-			uint8_t* pend{pbeg + buf.size() - 2};
-			Shit::Init(pbeg, pend);
-			for (auto& func : execs) {
-				bool const state{func(&pbeg, &pend)};
-				if (!state) {
-					ret = false;
-					break;
-				}
-			}
-			offset = 0;
-		}
-		return ret;
 	}
 	// RUN INSERT
 	bool RunInsert(uint8_t* pbeg, size_t const sz) {

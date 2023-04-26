@@ -30,7 +30,8 @@ namespace Parse {
 			"filter{","!filter{",
 			"eq{[","!eq{[",
 			"insert{[",
-			"replace{[",
+			"replace{[","xor{[","mod{[",
+			"inversion{}",
 	};
 	std::vector<std::string> const kEditableFuncs{
 		"crop{","cropb{",

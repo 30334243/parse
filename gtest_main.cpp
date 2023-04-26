@@ -2,7 +2,6 @@
 #include "gtest-1.13/googletest/include/gtest/gtest.h"
 #include "parse.hpp"
 
-
 TEST(Parse, shrb_check_arg) {
 	std::vector<uint8_t> kIn{
 		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
@@ -273,6 +272,17 @@ TEST(Parse, out_of_range_right) {
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Out of range: -11", parse.msg.size()));
 }
 
+TEST(Parse, out_of_range_packet) {
+	std::vector<uint8_t> kIn{1,2,3,4,5,6};
+	char const* script{"exec(crop{6,1});"};
+	uint8_t err{};
+	uint64_t num_pck{};
+	std::vector<uint8_t> vec{};
+	auto parse = Parsed(script, vec, err, num_pck);
+	parse.Run(kIn.data(), kIn.size());
+	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Out of range. Packet: 0", parse.msg.size()));
+}
+
 TEST(Parse, missing_bracket) {
 	std::vector<uint8_t> kIn{
 		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
@@ -291,7 +301,7 @@ TEST(Parse, missing_bracket) {
 	uint64_t num_pck{};
 	auto parse = Parsed(script, vec, err, num_pck);
 	parse.Run(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Missing \")\"", parse.msg.size()));
+	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Missing \")\" or \";\"", parse.msg.size()));
 }
 
 TEST(Parse, check_lid_and) {
@@ -393,6 +403,42 @@ TEST(Parse, check_lid_split) {
 	ASSERT_FALSE(parse.msg.size() == 0);
 	ASSERT_TRUE(parse.lid == 0x0202020202020202);
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "LID overflow", parse.msg.size()));
+}
+
+TEST(Parse, inversion) {
+	char const* script{"exec(inversion{});"};
+	std::vector<uint8_t> kIn{1,2,3,4,5,6};
+	std::vector<uint8_t> out{0xFE,0xFD,0xFC,0xFB,0xFA,0xF9};
+	uint8_t err{};
+	uint64_t num_pck{};
+	std::vector<uint8_t> vec{};
+	auto parse = Parsed(script, vec, err, num_pck);
+	parse.RunInsert(kIn.data(), kIn.size());
+	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+}
+
+TEST(Parse, mod) {
+	char const* script{"exec(mod{[3,3,3,4,5,6]});"};
+	std::vector<uint8_t> kIn{1,2,3,4,5,6};
+	std::vector<uint8_t> out{1,2,0,0,0,0};
+	uint8_t err{};
+	uint64_t num_pck{};
+	std::vector<uint8_t> vec{};
+	auto parse = Parsed(script, vec, err, num_pck);
+	parse.RunInsert(kIn.data(), kIn.size());
+	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+}
+
+TEST(Parse, xor) {
+	char const* script{"exec(xor{[1,2,3,4,5,6]});"};
+	std::vector<uint8_t> kIn{1,2,3,4,5,6};
+	std::vector<uint8_t> out{0,0,0,0,0,0};
+	uint8_t err{};
+	uint64_t num_pck{};
+	std::vector<uint8_t> vec{};
+	auto parse = Parsed(script, vec, err, num_pck);
+	parse.RunInsert(kIn.data(), kIn.size());
+	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
 }
 
 TEST(Parse, check_lid_split_not) {
