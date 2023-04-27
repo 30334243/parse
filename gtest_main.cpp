@@ -16,11 +16,29 @@ TEST(Parse, shrb_check_arg) {
 	};
 	char const* script{"exec(shrb{9});"};
 	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "arg \"shrb\" must be < 8: 9", parse.msg.size()));
+}
+
+
+TEST(Parse, every) {
+	std::vector<uint8_t> kIn{
+		9, 0,//size
+		1,2,3,4,5,6,7,8,9,//data
+		6, 0,//size
+		1,2,3,4,5,6,//data
+		10, 0,//size
+		1,2,3,4,5,6,7,8,9,10//data
+	};
+	char const* script{"every(0,0x00FF,0);"};
+	std::vector<std::vector<uint8_t>> vvec{};
+	uint8_t err{};
+	uint64_t num_pck{};
+	auto parse = Parsed(script);
+	parse.Init(Shit::TestContainer(vvec));
+	parse.Run(kIn.data(), kIn.size());
+	int y{};
 }
 
 TEST(Parse, shrb) {
@@ -31,7 +49,7 @@ TEST(Parse, shrb) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x15, 0x48, 0x68, 0xEA, 0x05, 0xE6, 0x06, 0x3F, 
 			0x10, 0x80, 0x15, 0x00, 0xA0, 0x20, 0x20, 0x20
@@ -48,7 +66,7 @@ TEST(Parse, shrb_shlb) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
@@ -64,7 +82,7 @@ TEST(Parse, shlb_shrb) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x0A, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
@@ -80,7 +98,7 @@ TEST(Parse, shlb_shr_shrb) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x10, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
@@ -96,7 +114,7 @@ TEST(Parse, shlb_shr_shrb_shl) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x52, 0x1A, 0x3A, 0x10, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
@@ -120,7 +138,7 @@ TEST(Parse, crop) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
 			0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x05, 0x00, 0x01, 0x02, 0x05,
@@ -151,7 +169,7 @@ TEST(Parse, crop_shrb_shlb) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
 			0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x05, 0x00, 0x01, 0x02, 0x05,
@@ -182,7 +200,7 @@ TEST(Parse, shr) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
 			0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x05, 0x00, 0x01, 0x02, 0x05,
@@ -214,7 +232,7 @@ TEST(Parse, shr_insert) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		1,2,3,0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
 			0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x05, 0x00, 0x01, 0x02, 0x05,
@@ -246,7 +264,7 @@ TEST(Parse, out_of_range_left) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Out of range: -1", parse.msg.size()));
 }
@@ -267,7 +285,7 @@ TEST(Parse, out_of_range_right) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Out of range: -11", parse.msg.size()));
 }
@@ -278,7 +296,7 @@ TEST(Parse, out_of_range_packet) {
 	uint8_t err{};
 	uint64_t num_pck{};
 	std::vector<uint8_t> vec{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Out of range. Packet: 0", parse.msg.size()));
 }
@@ -299,7 +317,7 @@ TEST(Parse, missing_bracket) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Missing \")\" or \";\"", parse.msg.size()));
 }
@@ -331,7 +349,7 @@ TEST(Parse, check_lid_and) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	ASSERT_TRUE(parse.lid == 0xFFFFFFFFFFFFFFFF);
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "LID overflow", parse.msg.size()));
@@ -364,7 +382,7 @@ TEST(Parse, check_lid_and_not) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	ASSERT_FALSE(parse.msg.size() == 0);
 	ASSERT_TRUE(parse.lid == 0xFFFFFFFFFFFFFFFF);
@@ -398,7 +416,7 @@ TEST(Parse, check_lid_split) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	ASSERT_FALSE(parse.msg.size() == 0);
 	ASSERT_TRUE(parse.lid == 0x0202020202020202);
@@ -412,7 +430,7 @@ TEST(Parse, inversion) {
 	uint8_t err{};
 	uint64_t num_pck{};
 	std::vector<uint8_t> vec{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.RunInsert(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
 }
@@ -424,7 +442,7 @@ TEST(Parse, mod) {
 	uint8_t err{};
 	uint64_t num_pck{};
 	std::vector<uint8_t> vec{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.RunInsert(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
 }
@@ -436,7 +454,7 @@ TEST(Parse, xor) {
 	uint8_t err{};
 	uint64_t num_pck{};
 	std::vector<uint8_t> vec{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.RunInsert(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
 }
@@ -468,7 +486,7 @@ TEST(Parse, check_lid_split_not) {
 	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
-	auto parse = Parsed(script, vec, err, num_pck);
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	ASSERT_FALSE(parse.msg.size() == 0);
 	ASSERT_TRUE(parse.lid == 0xfdfdfdfdfdfdfdfd);

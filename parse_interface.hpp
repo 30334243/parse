@@ -8,12 +8,12 @@
 
 namespace Parse {
 	// CONSTANTS
-    static std::string const kExec{"exec("};
-	static std::string const kExecEnd{");"};
+	static std::string const kExec{"exec("};
+	static std::string const kEvery{"every("};
+	static std::string const kEnd{");"};
 	static std::string const kFilterMask{",["};
-    static std::string const kHex{"0x"};
+	static std::string const kHex{"0x"};
 	static std::string const kBin{"0b"};
-	static std::string const kInsert{"insert{"};
 	static size_t const kMaxChar{(size_t)0xFF};
 	static size_t const kMaxShort{(size_t)0xFFFF};
 	static size_t const kMaxInt{(size_t)0xFFFFFFFF};
@@ -35,8 +35,8 @@ namespace Parse {
 	};
 	std::vector<std::string> const kEditableFuncs{
 		"crop{","cropb{",
-			"shrb{",
-			"shlb{",
+			"shrb{","shlb{",
+			"insert{[",
 	};
 	// USING
 	using ItStr = std::string::iterator;

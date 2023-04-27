@@ -10,6 +10,21 @@
 
 namespace Parse {
 	namespace Utils {
+		// FOR TUPLE EMPTY
+		template <size_t I = 0, typename Ts>
+			typename std::enable_if<(I == std::tuple_size<Ts>::value), void>::type
+			for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+				return;
+			}
+		// FOR TUPLE
+		template <size_t I = 0, typename Ts>
+			typename std::enable_if<(I < std::tuple_size<Ts>::value), void>::type
+			for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+				std::get<I>(tup)(name, beg, end, err);
+				if (err == 0) {
+					for_tuple<I + 1, Ts>(tup, name, beg, end, err);
+				}
+			}
 		// CHECK TYPE
 		static bool CheckType(ItStr& beg, ItStr& end, uint8_t const base) {
 			bool ret{true};
@@ -47,11 +62,6 @@ namespace Parse {
 				return c==' '||c=='\n'||c=='\r'||c=='\t'||c=='_'||c=='\'';
 			};
 			str.erase(std::remove_if(str.begin(), str.end(), rem), str.end());
-		}
-		// FIND INSERT FUNC
-		static bool FindInsertFunc(std::string const& script) {
-			return std::search(script.cbegin(), script.cend(),
-									 kInsert.cbegin(), kInsert.cend()) != script.cend();
 		}
 		// FIND EDITABLE FUNCTIONS
 		static bool FindEditableFuncs(std::string const& script) {
@@ -146,11 +156,16 @@ struct Parsed {
 	using ItStr = std::string::iterator;
 	using Func = std::function<void(std::string const&,ItStr&,ItStr&,uint8_t&)>;
 	// MEMBERS
-	std::vector<std::list<Shit::Func>> funcs;
+	std::vector<std::list<Shit::Physical>> funcs;
+	std::string script{};
 	std::string msg{};
+	std::vector<uint8_t> vec{};
+	std::vector<std::vector<uint8_t>> vvec{};
 	uint64_t insert_sz{};
 	uint64_t lid{};
 	size_t offset{};
+	size_t num_pck{};
+	uint8_t err{};
 	// AND
 	void And(uint64_t const sz) {
 		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
@@ -761,11 +776,11 @@ struct Parsed {
 		return ret;
 	}
 	// CROP
-	auto Crop(size_t& counter) -> Func {
-		return [this, &counter] (std::string const& name,
-										 ItStr& beg,
-										 ItStr& end,
-										 uint8_t& err) {
+	auto Crop() -> Func {
+		return [this] (std::string const& name,
+							ItStr& beg,
+							ItStr& end,
+							uint8_t& err) {
 			if (name == "crop{" && beg < end) {
 				if (std::count(beg, end, ',') == 1) {
 					std::tuple<size_t,size_t> args{};
@@ -775,7 +790,7 @@ struct Parsed {
 						this->funcs.back().emplace_back(
 							Shit::Check::OutOfRange(std::get<0>(args),
 															std::get<1>(args),
-															counter,
+															this->num_pck,
 															msg));
 						this->funcs.back().emplace_back(
 							Shit::Crop(std::get<0>(args), std::get<1>(args)));
@@ -801,21 +816,6 @@ struct Parsed {
 		}
 		return ret;
 	}
-	// FOR TUPLE EMPTY
-	template <size_t I = 0, typename Ts>
-		typename std::enable_if<(I == std::tuple_size<Ts>::value), void>::type
-		for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-			return;
-		}
-	// FOR TUPLE
-	template <size_t I = 0, typename Ts>
-		typename std::enable_if<(I < std::tuple_size<Ts>::value), void>::type
-		for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-			std::get<I>(tup)(name, beg, end, err);
-			if (err == 0) {
-				for_tuple<I + 1, Ts>(tup, name, beg, end, err);
-			}
-		}
 	// COMMANDS
 	template<class... ArgsTuple>
 		auto Commands(ArgsTuple... args_tuple) ->
@@ -829,7 +829,7 @@ struct Parsed {
 						if (!command.empty()) {
 							beg += name.size();
 							auto end_arg = std::find(beg, end, '}');
-							for_tuple(ts, command, beg, end_arg, err);
+							Parse::Utils::for_tuple(ts, command, beg, end_arg, err);
 							if (err == 1) {
 								return;
 							}
@@ -845,53 +845,98 @@ struct Parsed {
 				}
 			};
 		}
+	// GET ARGUMENTS
+	std::vector<uint64_t> GetArgs(ItStr& beg, ItStr& end, size_t const sz) {
+		std::vector<uint64_t> args(sz);
+		auto get_args = [&beg, &end] (uint64_t& elm) {
+			auto tmp_beg = std::find(beg, end, ',');
+			Parse::Utils::Convert(beg, tmp_beg, elm);
+			beg = tmp_beg + 1;
+		};
+		std::for_each(args.begin(), args.end(), get_args);
+		return args;
+	}
+	// GET ARGUMENTS
+	std::vector<Shit::Physical> GetArgs(ItStr& beg, ItStr& end) {
+		std::vector<Shit::Physical> args{};
+		while (beg < end) {
+			auto tmp = std::find(beg, end, ',');
+			if (beg < end) {
+				uint64_t elm{};
+				/* Parse::Utils::Convert(beg, tmp, elm); */
+				/* args.emplace_back(elm); */
+				beg = tmp + 1;
+			}
+		}
+		return args;
+	}
+	// FOR EVERY PACKET
+	template<class Save>
+		void Every(ItStr& beg, ItStr& end, Save save) {
+			std::search(beg, end, Parse::kEvery.begin(), Parse::kEvery.end());
+			if (beg < end) {
+				beg += Parse::kEvery.size();
+				auto args = GetArgs(beg, end, 3);
+				auto post_args = GetArgs(beg, end);
+				this->funcs.back().emplace_back(Shit::Every(args, post_args));
+			}
+		}
+	// EXECUTION
+	template<class Save>
+		void Exec(ItStr& beg, ItStr& end, Save save) {
+			auto tmp_beg = std::search(beg, end, Parse::kExec.begin(), Parse::kExec.end()); 
+			if (tmp_beg < end) {
+				beg = tmp_beg;
+				beg += Parse::kExec.size();
+				while (beg < end) {
+					this->funcs.emplace_back(std::list<Shit::Physical>{});
+					auto commands = Commands(
+						Crop(),
+						Shr(),ShrInBits(),
+						Shl(),ShlInBits(),
+						Eq(),EqNot(),
+						Filter(),FilterNot(),
+						And(),AndNot(),
+						Split(),SplitNot(),
+						Insert(),
+						Replace(),Xor(),Mod(),
+						Inversion()
+						);
+					while (beg < end) {
+						commands(beg, end, this->err);
+						if (this->err == 1) {
+							break;
+						}
+					}
+					beg = std::search(beg, end,
+											Parse::kExec.begin(), Parse::kExec.end());
+					if (this->err == 0) {
+						this->funcs.back().emplace_back(save);
+					}
+				}
+			}
+		}
+	// INIT
+	template<class Save>
+		void Init(Save save) {
+			auto beg = script.begin();
+			auto end = std::search(script.begin(), script.end(),
+										  Parse::kEnd.begin(), Parse::kEnd.end());
+			while (end < script.end()) {
+				Exec(beg, end, save);
+				Every(beg, end, save);
+				end = beg + 2;
+				end = std::search(end, script.end(),
+										Parse::kEnd.begin(), Parse::kEnd.end());
+			}
+		}
 	// CONSTRUCTOR
-	explicit Parsed(std::string str,
-						 /* std::ofstream& dst, */
-						 std::vector<uint8_t>& vec,
-						 uint8_t& err,
-						 size_t& num_pck) {
+	explicit Parsed(std::string str) {
 		std::transform(str.begin(), str.end(),
 							str.begin(),
 							[] (char c) {return std::tolower(c);});
 		Parse::Utils::RemoveUnusedChars(str);
-		auto exec = std::search(str.begin(), str.end(),
-										Parse::kExec.begin(), Parse::kExec.end());
-		while (exec != str.end()) {
-			this->funcs.emplace_back(std::list<Shit::Func>{});
-			auto commands = Commands(
-				Crop(num_pck),
-				Shr(),ShrInBits(),
-				Shl(),ShlInBits(),
-				Eq(),EqNot(),
-				Filter(),FilterNot(),
-				And(),AndNot(),
-				Split(),SplitNot(),
-				Insert(),
-				Replace(),Xor(),Mod(),
-				Inversion()
-				);
-			auto beg = exec + Parse::kExec.size();
-			auto end = std::search(beg, str.end(),
-										  Parse::kExecEnd.begin(), Parse::kExecEnd.end());
-			if (end == str.end()) {
-				msg = "Missing \")\" or \";\"";
-				exec = end;
-			} else {
-				while (beg < end) {
-					commands(beg, end, err);
-					if (err == 1) {
-						break;
-					}
-				}
-				exec = std::search(end, str.end(),
-										 Parse::kExec.begin(), Parse::kExec.end());
-				if (err == 0) {
-					/* this->funcs.back().emplace_back(Shit::Write<Shit::kSig>(dst)); */
-					this->funcs.back().emplace_back(Shit::Test(vec));
-				}
-			}
-		}
+		script = std::move(str);
 	}
 	// RUN INSERT
 	bool RunInsert(uint8_t* pbeg, size_t const sz) {
