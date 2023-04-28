@@ -20,8 +20,63 @@ TEST(Parse, shrb_check_arg) {
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "arg \"shrb\" must be < 8: 9", parse.msg.size()));
 }
 
+TEST(Parse, defrag) {
+	std::vector<uint8_t> kIn{
+		1,//value
+			1, 2, 3, 4, 5, 6, 7,//data
+			2,//value
+			1, 2, 3,//data
+			3,//value
+			1, 2, 3, 4, 5//data
+	};
+	char const* script{
+		"exec("
+			"defrag{"
+			"only{0,0b11,0b00},"
+			"first{0,0b11,0b01},"
+			"middle{0,0b11,0b10},"
+			"last{0,0b11,0b11}"
+			"})"
+	};
+	auto parse = Parsed(script);
+	parse.Run(kIn.data(), kIn.size());
+}
 
-TEST(Parse, every) {
+TEST(Parse, every_all) {
+	std::vector<uint8_t> kIn{
+		0, 9, 0,//size
+			1,2,3,4,5,6,7,8,9,//data
+			0, 6, 0,//size
+			1,2,3,4,5,6,//data
+			0, 10, 0,//size
+			1,2,3,4,5,6,7,8,9,10//data
+	};
+	char const* script{"every(1,0x00FF,3);"};
+	auto parse = Parsed(script);
+	parse.Run(kIn.data(), kIn.size());
+	ASSERT_TRUE(parse.vvec[0].size() == 12);
+	ASSERT_TRUE(parse.vvec[1].size() == 9);
+	ASSERT_TRUE(parse.vvec[2].size() == 13);
+}
+
+TEST(Parse, every_whith_header) {
+	std::vector<uint8_t> kIn{
+		11, 0,//size
+		1,2,3,4,5,6,7,8,9,//data
+		8, 0,//size
+		1,2,3,4,5,6,//data
+		12, 0,//size
+		1,2,3,4,5,6,7,8,9,10//data
+	};
+	char const* script{"every(0,0x00FF,0);"};
+	auto parse = Parsed(script);
+	parse.Run(kIn.data(), kIn.size());
+	ASSERT_TRUE(parse.vvec[0].size() == 11);
+	ASSERT_TRUE(parse.vvec[1].size() == 8);
+	ASSERT_TRUE(parse.vvec[2].size() == 12);
+}
+
+TEST(Parse, every_without_header) {
 	std::vector<uint8_t> kIn{
 		9, 0,//size
 		1,2,3,4,5,6,7,8,9,//data
@@ -30,10 +85,12 @@ TEST(Parse, every) {
 		10, 0,//size
 		1,2,3,4,5,6,7,8,9,10//data
 	};
-	char const* script{"every(0,0x00FF,0);"};
+	char const* script{"every(0,0x00FF,2);"};
 	auto parse = Parsed(script);
-	/* parse.Run(kIn.data(), kIn.size()); */
-	int y{};
+	parse.Run(kIn.data(), kIn.size());
+	ASSERT_TRUE(parse.vvec[0].size() == 11);
+	ASSERT_TRUE(parse.vvec[1].size() == 8);
+	ASSERT_TRUE(parse.vvec[2].size() == 12);
 }
 
 TEST(Parse, shrb) {
@@ -46,7 +103,7 @@ TEST(Parse, shrb) {
 			0x10, 0x80, 0x15, 0x00, 0xA0, 0x20, 0x20, 0x20
 	};
 	auto parse = Parsed(script);
-	parse.Run(kIn.data(), kIn.size());
+	parse.RunInsert(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 

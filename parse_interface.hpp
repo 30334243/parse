@@ -32,11 +32,15 @@ namespace Parse {
 			"insert{[",
 			"replace{[","xor{[","mod{[",
 			"inversion{}",
+			"defrag{",
 	};
 	std::vector<std::string> const kEditableFuncs{
-		"crop{","cropb{",
-			"shrb{","shlb{",
+		"crop{",
+			"shrb{",
 			"insert{[",
+	};
+	std::vector<std::string> const kDefrag{
+		"only{","first{","middle{","last{"
 	};
 	// USING
 	using ItStr = std::string::iterator;

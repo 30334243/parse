@@ -4,26 +4,29 @@
 #include <algorithm>
 #include <list>
 #include <cctype>
+#include <map>
 
 #include "parse_interface.hpp"
 #include "../shit_msvc13/shit_msvc13.hpp"
 
 namespace Parse {
 	namespace Utils {
+		enum {kErr,kMine,kNotMine,kUnk};
 		// FOR TUPLE EMPTY
 		template <size_t I = 0, typename Ts>
-			typename std::enable_if<(I == std::tuple_size<Ts>::value), void>::type
-			for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-				return;
+			typename std::enable_if<(I == std::tuple_size<Ts>::value), uint8_t>::type
+			for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end) {
+				return kUnk;
 			}
 		// FOR TUPLE
 		template <size_t I = 0, typename Ts>
-			typename std::enable_if<(I < std::tuple_size<Ts>::value), void>::type
-			for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-				std::get<I>(tup)(name, beg, end, err);
-				if (err == 0) {
-					for_tuple<I + 1, Ts>(tup, name, beg, end, err);
+			typename std::enable_if<(I < std::tuple_size<Ts>::value), uint8_t>::type
+			for_tuple(Ts tup, std::string const& name, ItStr& beg, ItStr& end) {
+				uint8_t state{std::get<I>(tup)(name, beg, end)};
+				if (state == kNotMine) {
+					state = for_tuple<I + 1, Ts>(tup, name, beg, end);
 				}
+				return state;
 			}
 		// CHECK TYPE
 		static bool CheckType(ItStr& beg, ItStr& end, uint8_t const base) {
@@ -154,18 +157,18 @@ namespace Parse {
 struct Parsed {
 	// USING
 	using ItStr = std::string::iterator;
-	using Func = std::function<void(std::string const&,ItStr&,ItStr&,uint8_t&)>;
+	using Func = std::function<uint8_t(std::string const&,ItStr&,ItStr&)>;
 	// MEMBERS
 	std::vector<std::list<Shit::Physical>> funcs;
 	std::string script{};
 	std::string msg{};
 	std::vector<uint8_t> vec{};
 	std::vector<std::vector<uint8_t>> vvec{};
+	std::map<uint64_t, std::vector<uint8_t>> defrag{};
 	uint64_t insert_sz{};
 	uint64_t lid{};
 	size_t offset{};
 	size_t num_pck{};
-	uint8_t err{};
 	// AND
 	void And(uint64_t const sz) {
 		this->funcs.back().emplace_back(Shit::Check::Lid(offset, msg));
@@ -279,6 +282,45 @@ struct Parsed {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(args.size(), msg));
 		this->funcs.back().emplace_back(Shit::Mod(args));
 	}
+	// DEFRAG
+	template<class T>
+		void Defrag(std::vector<uint64_t> const& args,
+						std::vector<uint64_t> const& args_id) {
+			this->funcs.back().emplace_back(
+				Shit::Defrag(
+					Shit::Defrag<T>(args,
+										 args_id,
+										 this->defrag,
+										 Shit::DefragOnly(this->vec)),
+					Shit::Defrag<T>(args,
+										 args_id,
+										 this->defrag,
+										 Shit::DefragFirst(this->vec, args[2])),
+					Shit::Defrag<T>(args,
+										 args_id,
+										 this->defrag,
+										 Shit::DefragMiddle(this->vec, args[2])),
+					Shit::Defrag<T>(args,
+										 args_id,
+										 this->defrag,
+										 Shit::DefragLast(this->vec, args[2]))));
+		}
+	// DEFRAG
+	void Defrag(std::vector<uint64_t> const& args,
+					std::vector<uint64_t> const& args_id) {
+		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
+		if (args[1] <= Parse::kMaxChar) {
+			Defrag<uint8_t>(args, args_id);
+		} else if (args[1] <= Parse::kMaxShort) {
+			Defrag<uint16_t>(args, args_id);
+		} else if (args[1] <= Parse::kMaxInt) {
+			Defrag<uint32_t>(args, args_id);
+		} else if (args[1] <= Parse::kMaxLong) {
+			Defrag<uint64_t>(args, args_id);
+		} else {
+			msg = "unknown base: " + std::to_string(args[1]);
+		}
+	}
 	// FILTER
 	void Filter(uint64_t const sz, std::vector<uint64_t> const& args) {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
@@ -291,20 +333,19 @@ struct Parsed {
 			this->funcs.back().emplace_back(
 				Shit::Filter<uint16_t>(sz,
 											  args,
-											  Shit::SaveToLid<uint16_t>(lid, offset)));
-		} else if (sz <= Parse::kMaxInt) {
-			this->funcs.back().emplace_back(
-				Shit::Filter<uint32_t>(sz,
-											  args,
-											  Shit::SaveToLid<uint32_t>(lid, offset)));
-		} else if (sz <= Parse::kMaxLong) {
-			this->funcs.back().emplace_back(
-				Shit::Filter<uint64_t>(sz,
-											  args,
-											  Shit::SaveToLid<uint64_t>(lid, offset)));
-		} else {
-			msg = "unknown base: " + std::to_string(sz);
-		}
+											  Shit::SaveToLid<uint16_t>(lid, offset))); } else if (sz <= Parse::kMaxInt) {
+				this->funcs.back().emplace_back(
+					Shit::Filter<uint32_t>(sz,
+												  args,
+												  Shit::SaveToLid<uint32_t>(lid, offset)));
+			} else if (sz <= Parse::kMaxLong) {
+				this->funcs.back().emplace_back(
+					Shit::Filter<uint64_t>(sz,
+												  args,
+												  Shit::SaveToLid<uint64_t>(lid, offset)));
+			} else {
+				msg = "unknown base: " + std::to_string(sz);
+			}
 	}
 	// FILTER NOT
 	void FilterNot(uint64_t const sz, std::vector<uint64_t> const& args) {
@@ -375,15 +416,19 @@ struct Parsed {
 	}
 	// INVERSION
 	auto Inversion() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "inversion{}") {
 				this->funcs.back().emplace_back(Shit::Inversion());
+				state = Parse::Utils::kMine;
 			}
+			return state;
 		};
 	}
 	// MOD
 	auto Mod() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "mod{[") {
 				auto tmp = beg;
 				bool const res = Parse::Utils::OpForArgsList(
@@ -400,15 +445,18 @@ struct Parsed {
 							return true;
 						},msg);
 					Mod(vec);
+					state = Parse::Utils::kMine;
 				} else {
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// XOR
 	auto Xor() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "xor{[") {
 				auto tmp = beg;
 				bool const res = Parse::Utils::OpForArgsList(
@@ -425,15 +473,18 @@ struct Parsed {
 							return true;
 						},msg);
 					Xor(vec);
+					state = Parse::Utils::kMine;
 				} else {
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// AND
 	auto And() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "and{" && beg < end) {
 				if (beg != end) {
 					if (std::count(beg, end, ',') == 0) {
@@ -441,39 +492,45 @@ struct Parsed {
 						if (Parse::Utils::Convert(beg, end, sz)) {
 							And(sz);
 							beg += std::distance(beg, end);
+							state = Parse::Utils::kMine;
 						} else {
-							err = 1;
+							state = Parse::Utils::kErr;
 						}
 					} else {
 						msg = "Command \"And\" invalid: " + std::string(beg, end);
-						err = 1;
+						state = Parse::Utils::kErr;
 					}
 				}
 			}
+			return state;
 		};
 	}
 	// AND NOT
 	auto AndNot() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "!and{" && beg < end) {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t sz{};
 					if (Parse::Utils::Convert(beg, end, sz)) {
 						AndNot(sz);
 						beg += std::distance(beg, end);
+						state = Parse::Utils::kMine;
 					} else {
-						err = 1;
+						state = Parse::Utils::kErr;
 					}
 				} else {
 					msg = "Command \"AndNot\" invalid: " + std::string(beg, end);
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// SPLIT
 	auto Split() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "split{" && beg < end) {
 				if (beg != end) {
 					if (std::count(beg, end, ',') == 0) {
@@ -481,34 +538,39 @@ struct Parsed {
 						if (Parse::Utils::Convert(beg, end, sz)) {
 							Split(sz);
 							beg += std::distance(beg, end);
+							state = Parse::Utils::kMine;
 						} else {
-							err = 1;
+							state = Parse::Utils::kErr;
 						}
 					} else {
 						msg = "Command \"Split\" invalid: " + std::string(beg, end);
-						err = 1;
+						state = Parse::Utils::kErr;
 					}
 				}
 			}
+			return state;
 		};
 	}
 	// SPLIT NOT
 	auto SplitNot() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "!split{" && beg < end) {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t sz{};
 					if (Parse::Utils::Convert(beg, end, sz)) {
 						SplitNot(sz);
 						beg += std::distance(beg, end);
+						state = Parse::Utils::kMine;
 					} else {
-						err = 1;
+						state = Parse::Utils::kErr;
 					}
 				} else {
 					msg = "Command \"SplitNot\" invalid: " + std::string(beg, end);
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// GET FILTER AND
@@ -529,7 +591,8 @@ struct Parsed {
 	}
 	// INSERT
 	auto Insert() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "insert{[" && beg < end) {
 				auto tmp = beg;
 				bool const res = Parse::Utils::OpForArgsList(
@@ -546,18 +609,18 @@ struct Parsed {
 							return true;
 						},msg);
 					Insert(vec);
+					state = Parse::Utils::kMine;
 				} else {
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// REPLACE
 	auto Replace() -> Func {
-		return [this] (std::string const& name,
-							ItStr& beg,
-							ItStr& end,
-							uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "replace{[") {
 				auto tmp = beg;
 				bool const res = Parse::Utils::OpForArgsList(
@@ -575,14 +638,16 @@ struct Parsed {
 						},msg);
 					Replace(vec);
 				} else {
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// FILTER
 	auto Filter() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "filter{" && beg < end) {
 				uint64_t mask{};
 				GetFilterMask(beg, end, mask);
@@ -594,43 +659,35 @@ struct Parsed {
 						return true;
 					},msg);
 				Filter(mask, vec);
+				state = Parse::Utils::kMine;
 			}
+			return state;
 		};
 	}
 	// FILTER NOT
 	auto FilterNot() -> Func {
-		return [this] (std::string const& name,
-							ItStr& beg,
-							ItStr& end,
-							uint8_t& err) {
-			if (name == "!filter{" && beg < end) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
+			if (name == "filter{" && beg < end) {
 				uint64_t mask{};
 				GetFilterMask(beg, end, mask);
-				auto tmp = beg;
-				bool const res = Parse::Utils::OpForArgsList(
-					tmp, end, ',',
-					[this] (uint64_t const arg) {
-						return arg <= Parse::kMaxChar;
+				std::vector<uint64_t> vec{};
+				Parse::Utils::OpForArgsList(
+					beg, end, ',',
+					[&vec] (uint64_t const arg) {
+						vec.emplace_back(arg);
+						return true;
 					},msg);
-				std::vector<uint8_t> vec{};
-				if (res) {
-					std::vector<uint64_t> vec{};
-					Parse::Utils::OpForArgsList(
-						beg, end, ',',
-						[&vec] (uint64_t const arg) {
-							vec.emplace_back(arg);
-							return true;
-						},msg);
-					FilterNot(mask, vec);
-				} else {
-					err = 1;
-				}
+				FilterNot(mask, vec);
+				state = Parse::Utils::kMine;
 			}
+			return state;
 		};
 	}
 	// EQUAL
 	auto Eq() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "eq{[" && beg < end) {
 				auto tmp = beg;
 				bool const res = Parse::Utils::OpForArgsList(
@@ -647,15 +704,18 @@ struct Parsed {
 							return true;
 						},msg);
 					Eq(vec);
+					state = Parse::Utils::kMine;
 				} else {
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// EQUAL NOT
 	auto EqNot() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "!eq{[" && beg < end) {
 				auto tmp = beg;
 				bool const res = Parse::Utils::OpForArgsList(
@@ -672,34 +732,65 @@ struct Parsed {
 							return true;
 						},msg);
 					EqNot(vec);
+					state = Parse::Utils::kMine;
 				} else {
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// SHIFT LEFT BITS
 	auto ShlInBits() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "shlb{" && beg < end) {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t arg{};
 					if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
 						this->funcs.back().emplace_back(Shit::ShlInBits(arg));
+						state = Parse::Utils::kMine;
 					} else {
 						msg = "arg shlb must be < 8: " + std::to_string(arg);
-						err = 1;
+						state = Parse::Utils::kErr;
 					}
 					beg += std::distance(beg, end);
 				} else {
 					msg = "command \"shlb\" invalid: " + std::string(beg,end);
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
+		};
+	}
+	// SHIFT RIGHT BITS
+	auto ShrInBits() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
+			if (name == "shrb{" && beg < end) {
+				if (std::count(beg, end, ',') == 0) {
+					uint64_t arg{};
+					if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
+						++this->insert_sz;
+						this->funcs.back().emplace_back(Shit::ShrInBits(arg));
+						state = Parse::Utils::kMine;
+					} else {
+						msg = "arg \"shrb\" must be < 8: " + std::to_string(arg);
+						state = Parse::Utils::kErr;
+					}
+					beg += std::distance(beg, end);
+				} else {
+					msg = "command \"shrb\" invalid: " + std::string(beg,end);
+					state = Parse::Utils::kErr;
+				}
+			}
+			return state;
 		};
 	}
 	// SHIFT LEFT
 	auto Shl() -> Func {
-		return [this] (std::string const& name,ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name,ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "shl{" && beg < end) {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t arg{};
@@ -707,40 +798,22 @@ struct Parsed {
 						this->funcs.back().emplace_back(Shit::Check::OutOfRangeLeft(arg, msg));
 						this->funcs.back().emplace_back(Shit::Shl(arg));
 						beg += std::distance(beg, end);
+						state = Parse::Utils::kMine;
 					} else {
-						err = 1;
+						state = Parse::Utils::kErr;
 					}
 				} else {
 					msg = "command \"shl\" invalid: " + std::string(beg,end);
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
-		};
-	}
-	// SHIFT RIGHT BITS
-	auto ShrInBits() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
-			if (name == "shrb{" && beg < end) {
-				if (std::count(beg, end, ',') == 0) {
-					uint64_t arg{};
-					if (Parse::Utils::Convert(beg, end, arg) && arg < 8) {
-						++this->insert_sz;
-						this->funcs.back().emplace_back(Shit::ShrInBits(arg));
-					} else {
-						msg = "arg \"shrb\" must be < 8: " + std::to_string(arg);
-						err = 1;
-					}
-					beg += std::distance(beg, end);
-				} else {
-					msg = "command \"shrb\" invalid: " + std::string(beg,end);
-					err = 1;
-				}
-			}
+			return state;
 		};
 	}
 	// SHIFT RIGHT
 	auto Shr() -> Func {
-		return [this] (std::string const& name, ItStr& beg, ItStr& end, uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "shr{" && beg < end) {
 				if (std::count(beg, end, ',') == 0) {
 					uint64_t arg{};
@@ -749,14 +822,61 @@ struct Parsed {
 						this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(arg, msg));
 						this->funcs.back().emplace_back(Shit::Shr(arg));
 						beg += std::distance(beg, end);
+						state = Parse::Utils::kMine;
 					} else {
-						err = 1;
+						state = Parse::Utils::kErr;
 					}
 				} else {
 					msg = "command \"shr\" invalid: " + std::string(beg,end);
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
+		};
+	}
+	// FIND DEFRAG ELEMENTS
+	bool FindDefragElms(ItStr& beg, ItStr& end) {
+		bool ret{};
+		for (auto& elm : Parse::kDefrag) {
+			auto it = std::search(beg, end, elm.cbegin(), elm.cend());
+			if (it < end) {
+				beg = it + elm.size();
+				ret = true;
+				break;
+			}
+		}
+		return ret;
+	}
+	// DEFRAG ELEMENTS
+	uint8_t DefragElms(ItStr& beg, ItStr& end) {
+		static int const kMinArgs{2};
+		static int const kMinArgsId{1};
+		static int const kNumArgs{3};
+		static int const kNumArgsId{2};
+		uint8_t state{Parse::Utils::kNotMine};
+		while (FindDefragElms(beg, end)) {
+			if (kMinArgs <= std::count(beg, end, ',')) {
+				auto args = GetArgs(beg, end, kNumArgs);
+				auto args_id = decltype(args){};
+				if (kMinArgsId <= std::count(beg, end, ',')) {
+					args_id = GetArgs(beg, end, kNumArgsId);
+				}
+				Defrag(args, args_id);
+			} else {
+				msg = "command \"defrag\" invalid: " + std::string(beg,end);
+				state = Parse::Utils::kErr;
+			}
+		}
+		return state;
+	}
+	// DEFRAG
+	auto Defrag() -> Func {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
+			if (name == "defrag{") {
+				state = DefragElms(beg, end);
+			}
+			return state;
 		};
 	}
 	// CROP ARGUMENTS
@@ -777,10 +897,8 @@ struct Parsed {
 	}
 	// CROP
 	auto Crop() -> Func {
-		return [this] (std::string const& name,
-							ItStr& beg,
-							ItStr& end,
-							uint8_t& err) {
+		return [this] (std::string const& name, ItStr& beg, ItStr& end) {
+			uint8_t state{Parse::Utils::kNotMine};
 			if (name == "crop{" && beg < end) {
 				if (std::count(beg, end, ',') == 1) {
 					std::tuple<size_t,size_t> args{};
@@ -795,14 +913,17 @@ struct Parsed {
 						this->funcs.back().emplace_back(
 							Shit::Crop(std::get<0>(args), std::get<1>(args)));
 						beg += std::distance(beg, end);
+						state = Parse::Utils::kMine;
 					} else {
-						err = 1;
+						msg = "arguments command \"crot\" invalid: " + std::string(beg,end);
+						state = Parse::Utils::kErr;
 					}
 				} else {
 					msg = "command \"crop\" invalid: " + std::string(beg,end);
-					err = 1;
+					state = Parse::Utils::kErr;
 				}
 			}
+			return state;
 		};
 	}
 	// GET COMMAND
@@ -819,8 +940,10 @@ struct Parsed {
 	// COMMANDS
 	template<class... ArgsTuple>
 		auto Commands(ArgsTuple... args_tuple) ->
-		std::function<void(ItStr&,ItStr&,uint8_t&)> {
-			return [this, args_tuple...] (ItStr& beg, ItStr& end, uint8_t& err) {
+		std::function<uint8_t(ItStr&,ItStr&)> {
+			enum {kNextArg = 2};
+			return [this, args_tuple...] (ItStr& beg, ItStr& end) {
+				uint8_t state{Parse::Utils::kErr};
 				std::tuple<ArgsTuple...> ts{args_tuple...};
 				while (beg < end) {
 					std::string command{};
@@ -829,20 +952,18 @@ struct Parsed {
 						if (!command.empty()) {
 							beg += name.size();
 							auto end_arg = std::find(beg, end, '}');
-							Parse::Utils::for_tuple(ts, command, beg, end_arg, err);
-							if (err == 1) {
-								return;
-							}
-							beg += 2;
+							state = Parse::Utils::for_tuple(ts, command, beg, end_arg);
+							beg += kNextArg;
 							break;
 						}
 					}
 					if (command.empty()) {
 						beg = end;
-						err = 1;
-						return;
+						state = Parse::Utils::kUnk;
+						break;
 					}
 				}
+				return state;
 			};
 		}
 	// GET ARGUMENTS
@@ -857,36 +978,32 @@ struct Parsed {
 		return args;
 	}
 	// GET ARGUMENTS
-	template<class Save>
-		std::list<Shit::Physical> GetArgs(ItStr& beg, ItStr& end, Save save, int) {
-			std::list<Shit::Physical> args{};
+	std::list<Shit::Physical> GetArgs(ItStr& beg, ItStr& end) {
+		std::list<Shit::Physical> args{};
+		while (beg < end) {
+			auto commands = Commands(
+				Crop()
+				/* Shr(),ShrInBits(), */
+				/* Shl(),ShlInBits(), */
+				/* Eq(),EqNot(), */
+				/* Filter(),FilterNot(), */
+				/* And(),AndNot(), */
+				/* Split(),SplitNot(), */
+				/* Insert(), */
+				/* Replace(),Xor(),Mod(), */
+				/* Inversion() */
+				);
 			while (beg < end) {
-				auto commands = Commands(
-					Crop(),
-					Shr(),ShrInBits(),
-					Shl(),ShlInBits(),
-					Eq(),EqNot(),
-					Filter(),FilterNot(),
-					And(),AndNot(),
-					Split(),SplitNot(),
-					Insert(),
-					Replace(),Xor(),Mod(),
-					Inversion()
-					);
-				while (beg < end) {
-					commands(beg, end, this->err);
-					if (this->err == 1) {
-						break;
-					}
-				}
-				beg = std::search(beg, end,
-										Parse::kExec.begin(), Parse::kExec.end());
+				/* uint8_t const state{commands(beg, end)}; */
+				/* if (state == Parse::Utils::kErr) { */
+				/* break; */
+				/* } */
 			}
-			if (this->err == 0) {
-				args.emplace_back(save);
-			}
-			return args;
+			beg = std::search(beg, end,
+									Parse::kExec.begin(), Parse::kExec.end());
 		}
+		return args;
+	}
 	// FOR EVERY PACKET
 	template<class Save>
 		void Every(ItStr& beg, ItStr& end, Save save) {
@@ -895,13 +1012,15 @@ struct Parsed {
 				beg = tmp_beg;
 				beg += Parse::kEvery.size();
 				auto args = GetArgs(beg, end, 3);
-				auto post_args = GetArgs(beg, end, save, 1);
-				this->funcs.emplace_back(post_args);
+				std::list<Shit::Physical> lst{Shit::TestContainer(this->vvec)};
+				lst.splice(lst.end(), GetArgs(beg, end));
+				this->funcs.emplace_back(std::list<Shit::Physical>{Shit::Every(args, lst)});
 			}
 		}
 	// EXECUTION
 	template<class Save>
-		void Exec(ItStr& beg, ItStr& end, Save save) {
+		uint8_t Exec(ItStr& beg, ItStr& end, Save save) {
+			uint8_t state{Parse::Utils::kErr};
 			auto tmp_beg = std::search(beg, end, Parse::kExec.begin(), Parse::kExec.end()); 
 			if (tmp_beg < end) {
 				beg = tmp_beg;
@@ -918,21 +1037,21 @@ struct Parsed {
 						Split(),SplitNot(),
 						Insert(),
 						Replace(),Xor(),Mod(),
-						Inversion()
+						Inversion(),
+						Defrag()
 						);
-					while (beg < end) {
-						commands(beg, end, this->err);
-						if (this->err == 1) {
-							break;
-						}
+					uint8_t const state{commands(beg, end)};
+					if (state == Parse::Utils::kErr) {
+						break;
 					}
 					beg = std::search(beg, end,
 											Parse::kExec.begin(), Parse::kExec.end());
-					if (this->err == 0) {
+					if (state == Parse::Utils::kMine) {
 						this->funcs.back().emplace_back(save);
 					}
 				}
 			}
+			return state;
 		}
 	// CONSTRUCTOR
 	explicit Parsed(std::string str) {
@@ -945,7 +1064,10 @@ struct Parsed {
 		auto end = std::search(script.begin(), script.end(),
 									  Parse::kEnd.begin(), Parse::kEnd.end());
 		while (end < script.end()) {
-			Exec(beg, end, Shit::Test(this->vec));
+			uint8_t state{Exec(beg, end, Shit::Test(this->vec))};
+			if (state == Parse::Utils::kErr) {
+				msg = "exec error";
+			}
 			Every(beg, end, Shit::TestContainer(this->vvec));
 			end = beg + 2;
 			end = std::search(end, script.end(),
@@ -959,11 +1081,11 @@ struct Parsed {
 		for (auto& execs : funcs) {
 			std::vector<uint8_t> buf(insert_sz + sz);
 			std::copy(pbeg, pbeg + sz, buf.begin());
-			uint8_t* pbeg{buf.data()};
-			uint8_t* pend(pbeg + sz);
-			Shit::Init(pbeg, pend + insert_sz);
+			uint8_t* tmp{buf.data()};
+			uint8_t* pend(tmp + sz);
+			Shit::Init(tmp, pend + insert_sz);
 			for (auto& func : execs) {
-				bool const state{func(&pbeg, &pend)};
+				bool const state{func(&tmp, &pend)};
 				if (!state) {
 					ret = false;
 					break;
