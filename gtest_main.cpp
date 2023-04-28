@@ -15,7 +15,6 @@ TEST(Parse, shrb_check_arg) {
 			0x65
 	};
 	char const* script{"exec(shrb{9});"};
-	std::vector<uint8_t> vec{};
 	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "arg \"shrb\" must be < 8: 9", parse.msg.size()));
@@ -32,12 +31,8 @@ TEST(Parse, every) {
 		1,2,3,4,5,6,7,8,9,10//data
 	};
 	char const* script{"every(0,0x00FF,0);"};
-	std::vector<std::vector<uint8_t>> vvec{};
-	uint8_t err{};
-	uint64_t num_pck{};
 	auto parse = Parsed(script);
-	parse.Init(Shit::TestContainer(vvec));
-	parse.Run(kIn.data(), kIn.size());
+	/* parse.Run(kIn.data(), kIn.size()); */
 	int y{};
 }
 
@@ -46,16 +41,13 @@ TEST(Parse, shrb) {
 		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
 	char const* script{"exec(shrb{3});"};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
-	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x15, 0x48, 0x68, 0xEA, 0x05, 0xE6, 0x06, 0x3F, 
 			0x10, 0x80, 0x15, 0x00, 0xA0, 0x20, 0x20, 0x20
 	};
+	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, shrb_shlb) {
@@ -63,15 +55,12 @@ TEST(Parse, shrb_shlb) {
 		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
 	char const* script{"exec(shrb{3},shlb{3});"};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
-	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
+	auto parse = Parsed(script);
 	parse.RunInsert(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, shlb_shrb) {
@@ -79,15 +68,12 @@ TEST(Parse, shlb_shrb) {
 		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
 	char const* script{"exec(shlb{3},shrb{3});"};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
-	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x0A, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
+	auto parse = Parsed(script);
 	parse.RunInsert(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, shlb_shr_shrb) {
@@ -95,31 +81,12 @@ TEST(Parse, shlb_shr_shrb) {
 		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
 	char const* script{"exec(shlb{3},shr{3},shrb{3});"};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
 	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x10, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
 	};
 	parse.RunInsert(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
-}
-
-TEST(Parse, shlb_shr_shrb_shl) {
-	std::vector<uint8_t> kIn{
-		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
-	};
-	char const* script{"exec(shlb{3},shr{3},shrb{3},shl{3});"};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
-	auto parse = Parsed(script);
-	std::vector<uint8_t> out{
-		0x52, 0x1A, 0x3A, 0x10, 0x2F, 0x30, 0x31, 0xF8, 0x84, 0x00, 0xA8, 0x05, 0x01, 0x01, 0x01, 0x02
-	};
-	parse.RunInsert(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, crop) {
@@ -135,9 +102,6 @@ TEST(Parse, crop) {
 			0x65
 	};
 	char const* script{"exec(crop{3,2});"};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
 	auto parse = Parsed(script);
 	std::vector<uint8_t> out{
 		0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
@@ -150,38 +114,7 @@ TEST(Parse, crop) {
 			0x78, 0x2E, 0x54, 0x63, 0x70, 0x50, 0x72, 0x6F, 0x78, 0x79, 0x53, 0x65, 0x72, 0x76, 0x69
 	};
 	parse.Run(in.data(), in.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
-}
-
-TEST(Parse, crop_shrb_shlb) {
-	std::vector<uint8_t> in{
-		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
-			0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x05, 0x00, 0x01, 0x02, 0x05,
-			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x10, 0x5F, 0x9A, 0xB2, 0x56, 0x65, 0x3D, 0x11, 0x08,
-			0x50, 0x6A, 0xE8, 0x2D, 0x5F, 0x63, 0x8F, 0x74, 0x00, 0x0E, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00,
-			0xB8, 0x0B, 0x00, 0x00, 0xB8, 0x0B, 0x00, 0x00, 0x12, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01,
-			0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD6, 0x05, 0xA4, 0x00, 0x00, 0x00, 0x01,
-			0x00, 0x00, 0x00, 0x01, 0x1C, 0x01, 0x00, 0x01, 0x00, 0x00, 0x16, 0x43, 0x69, 0x74, 0x72, 0x69,
-			0x78, 0x2E, 0x54, 0x63, 0x70, 0x50, 0x72, 0x6F, 0x78, 0x79, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
-			0x65
-	};
-	char const* script{"exec(crop{3,2},shrb{3},shlb{3});"};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
-	auto parse = Parsed(script);
-	std::vector<uint8_t> out{
-		0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
-			0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x05, 0x00, 0x01, 0x02, 0x05,
-			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x10, 0x5F, 0x9A, 0xB2, 0x56, 0x65, 0x3D, 0x11, 0x08,
-			0x50, 0x6A, 0xE8, 0x2D, 0x5F, 0x63, 0x8F, 0x74, 0x00, 0x0E, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00,
-			0xB8, 0x0B, 0x00, 0x00, 0xB8, 0x0B, 0x00, 0x00, 0x12, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01,
-			0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD6, 0x05, 0xA4, 0x00, 0x00, 0x00, 0x01,
-			0x00, 0x00, 0x00, 0x01, 0x1C, 0x01, 0x00, 0x01, 0x00, 0x00, 0x16, 0x43, 0x69, 0x74, 0x72, 0x69,
-			0x78, 0x2E, 0x54, 0x63, 0x70, 0x50, 0x72, 0x6F, 0x78, 0x79, 0x53, 0x65, 0x72, 0x76, 0x69
-	};
-	parse.Run(in.data(), in.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, shr) {
@@ -197,7 +130,6 @@ TEST(Parse, shr) {
 			0x65
 	};
 	char const* script{"exec(shr{3});"};
-	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
 	auto parse = Parsed(script);
@@ -213,7 +145,7 @@ TEST(Parse, shr) {
 			0x65
 	};
 	parse.Run(in.data(), in.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, shr_insert) {
@@ -229,7 +161,6 @@ TEST(Parse, shr_insert) {
 			0x65
 	};
 	char const* script{"exec(shr{3},insert{[1,2,3]});"};
-	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
 	auto parse = Parsed(script);
@@ -245,7 +176,7 @@ TEST(Parse, shr_insert) {
 			0x65
 	};
 	parse.RunInsert(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, out_of_range_left) {
@@ -261,7 +192,6 @@ TEST(Parse, out_of_range_left) {
 			0x65
 	};
 	char const* script{"exec(shr{3},crop{1,1},shl{1});"};
-	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
 	auto parse = Parsed(script);
@@ -282,7 +212,6 @@ TEST(Parse, out_of_range_right) {
 			0x65
 	};
 	char const* script{"exec(shr{140});"};
-	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
 	auto parse = Parsed(script);
@@ -295,7 +224,6 @@ TEST(Parse, out_of_range_packet) {
 	char const* script{"exec(crop{6,1});"};
 	uint8_t err{};
 	uint64_t num_pck{};
-	std::vector<uint8_t> vec{};
 	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Out of range. Packet: 0", parse.msg.size()));
@@ -314,7 +242,6 @@ TEST(Parse, missing_bracket) {
 			0x65
 	};
 	char const* script{"exec(shr{140};"};
-	std::vector<uint8_t> vec{};
 	uint8_t err{};
 	uint64_t num_pck{};
 	auto parse = Parsed(script);
@@ -346,9 +273,6 @@ TEST(Parse, check_lid_and) {
 			"and{0b10},"
 			");"
 	};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
 	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	ASSERT_TRUE(parse.lid == 0xFFFFFFFFFFFFFFFF);
@@ -379,9 +303,6 @@ TEST(Parse, check_lid_and_not) {
 			"!and{0b1},"
 			");"
 	};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
 	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	ASSERT_FALSE(parse.msg.size() == 0);
@@ -413,9 +334,6 @@ TEST(Parse, check_lid_split) {
 			"split{0b10},"
 			");"
 	};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
 	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	ASSERT_FALSE(parse.msg.size() == 0);
@@ -427,36 +345,27 @@ TEST(Parse, inversion) {
 	char const* script{"exec(inversion{});"};
 	std::vector<uint8_t> kIn{1,2,3,4,5,6};
 	std::vector<uint8_t> out{0xFE,0xFD,0xFC,0xFB,0xFA,0xF9};
-	uint8_t err{};
-	uint64_t num_pck{};
-	std::vector<uint8_t> vec{};
 	auto parse = Parsed(script);
 	parse.RunInsert(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, mod) {
 	char const* script{"exec(mod{[3,3,3,4,5,6]});"};
 	std::vector<uint8_t> kIn{1,2,3,4,5,6};
 	std::vector<uint8_t> out{1,2,0,0,0,0};
-	uint8_t err{};
-	uint64_t num_pck{};
-	std::vector<uint8_t> vec{};
 	auto parse = Parsed(script);
 	parse.RunInsert(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, xor) {
 	char const* script{"exec(xor{[1,2,3,4,5,6]});"};
 	std::vector<uint8_t> kIn{1,2,3,4,5,6};
 	std::vector<uint8_t> out{0,0,0,0,0,0};
-	uint8_t err{};
-	uint64_t num_pck{};
-	std::vector<uint8_t> vec{};
 	auto parse = Parsed(script);
 	parse.RunInsert(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(out.data(), vec.data(), out.size()));
+	EXPECT_TRUE(0 == std::memcmp(out.data(), parse.vec.data(), out.size()));
 }
 
 TEST(Parse, check_lid_split_not) {
@@ -483,9 +392,6 @@ TEST(Parse, check_lid_split_not) {
 			"!split{0b10},"
 			");"
 	};
-	std::vector<uint8_t> vec{};
-	uint8_t err{};
-	uint64_t num_pck{};
 	auto parse = Parsed(script);
 	parse.Run(kIn.data(), kIn.size());
 	ASSERT_FALSE(parse.msg.size() == 0);

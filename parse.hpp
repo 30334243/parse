@@ -857,28 +857,46 @@ struct Parsed {
 		return args;
 	}
 	// GET ARGUMENTS
-	std::vector<Shit::Physical> GetArgs(ItStr& beg, ItStr& end) {
-		std::vector<Shit::Physical> args{};
-		while (beg < end) {
-			auto tmp = std::find(beg, end, ',');
-			if (beg < end) {
-				uint64_t elm{};
-				/* Parse::Utils::Convert(beg, tmp, elm); */
-				/* args.emplace_back(elm); */
-				beg = tmp + 1;
+	template<class Save>
+		std::list<Shit::Physical> GetArgs(ItStr& beg, ItStr& end, Save save, int) {
+			std::list<Shit::Physical> args{};
+			while (beg < end) {
+				auto commands = Commands(
+					Crop(),
+					Shr(),ShrInBits(),
+					Shl(),ShlInBits(),
+					Eq(),EqNot(),
+					Filter(),FilterNot(),
+					And(),AndNot(),
+					Split(),SplitNot(),
+					Insert(),
+					Replace(),Xor(),Mod(),
+					Inversion()
+					);
+				while (beg < end) {
+					commands(beg, end, this->err);
+					if (this->err == 1) {
+						break;
+					}
+				}
+				beg = std::search(beg, end,
+										Parse::kExec.begin(), Parse::kExec.end());
 			}
+			if (this->err == 0) {
+				args.emplace_back(save);
+			}
+			return args;
 		}
-		return args;
-	}
 	// FOR EVERY PACKET
 	template<class Save>
 		void Every(ItStr& beg, ItStr& end, Save save) {
-			std::search(beg, end, Parse::kEvery.begin(), Parse::kEvery.end());
-			if (beg < end) {
+			auto tmp_beg = std::search(beg, end, Parse::kEvery.begin(), Parse::kEvery.end());
+			if (tmp_beg < end) {
+				beg = tmp_beg;
 				beg += Parse::kEvery.size();
 				auto args = GetArgs(beg, end, 3);
-				auto post_args = GetArgs(beg, end);
-				this->funcs.back().emplace_back(Shit::Every(args, post_args));
+				auto post_args = GetArgs(beg, end, save, 1);
+				this->funcs.emplace_back(post_args);
 			}
 		}
 	// EXECUTION
@@ -916,20 +934,6 @@ struct Parsed {
 				}
 			}
 		}
-	// INIT
-	template<class Save>
-		void Init(Save save) {
-			auto beg = script.begin();
-			auto end = std::search(script.begin(), script.end(),
-										  Parse::kEnd.begin(), Parse::kEnd.end());
-			while (end < script.end()) {
-				Exec(beg, end, save);
-				Every(beg, end, save);
-				end = beg + 2;
-				end = std::search(end, script.end(),
-										Parse::kEnd.begin(), Parse::kEnd.end());
-			}
-		}
 	// CONSTRUCTOR
 	explicit Parsed(std::string str) {
 		std::transform(str.begin(), str.end(),
@@ -937,6 +941,16 @@ struct Parsed {
 							[] (char c) {return std::tolower(c);});
 		Parse::Utils::RemoveUnusedChars(str);
 		script = std::move(str);
+		auto beg = script.begin();
+		auto end = std::search(script.begin(), script.end(),
+									  Parse::kEnd.begin(), Parse::kEnd.end());
+		while (end < script.end()) {
+			Exec(beg, end, Shit::Test(this->vec));
+			Every(beg, end, Shit::TestContainer(this->vvec));
+			end = beg + 2;
+			end = std::search(end, script.end(),
+									Parse::kEnd.begin(), Parse::kEnd.end());
+		}
 	}
 	// RUN INSERT
 	bool RunInsert(uint8_t* pbeg, size_t const sz) {
