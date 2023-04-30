@@ -21,8 +21,28 @@ TEST(Parse, shrb_check_arg) {
 }
 
 TEST(Parse, defrag) {
-	std::vector<uint8_t> kIn{
-		1,//value
+	std::vector<std::vector<uint8_t>> kIn{
+		std::vector<uint8_t>{
+			0,//value
+				1, 2, 3, 4, 5, 6},//data
+			std::vector<uint8_t>{
+				1,//value
+				1, 2, 3, 4, 5, 6, 7},//data
+			std::vector<uint8_t>{
+				4,//value
+				1, 2, 3, 4},//data
+			std::vector<uint8_t>{
+				2,//value
+				1, 2, 3},//data
+			std::vector<uint8_t>{
+				3,//value
+				1, 2, 3, 4, 5//data
+			}
+	};
+	std::vector<uint8_t> kOut{
+		0,//value
+			1, 2, 3, 4, 5, 6,//data
+			1,//value
 			1, 2, 3, 4, 5, 6, 7,//data
 			2,//value
 			1, 2, 3,//data
@@ -32,14 +52,17 @@ TEST(Parse, defrag) {
 	char const* script{
 		"exec("
 			"defrag{"
-			"only{0,0b11,0b00},"
-			"first{0,0b11,0b01},"
-			"middle{0,0b11,0b10},"
-			"last{0,0b11,0b11}"
-			"})"
+			"only{0,0b111,0b00},"
+			"first{0,0b111,0b01},"
+			"middle{0,0b111,0b10},"
+			"last{0,0b111,0b11}"
+			"});"
 	};
 	auto parse = Parsed(script);
-	parse.Run(kIn.data(), kIn.size());
+	for (auto& in : kIn) {
+		parse.Run(in.data(), in.size());
+	}
+	EXPECT_TRUE(0 == std::memcmp(kOut.data(), parse.vvec[0].data(), kOut.size()));
 }
 
 TEST(Parse, every_all) {
@@ -287,23 +310,17 @@ TEST(Parse, out_of_range_packet) {
 }
 
 TEST(Parse, missing_bracket) {
-	std::vector<uint8_t> kIn{
-		0xAA, 0x43, 0x47, 0x50, 0x2F, 0x30, 0x31, 0xF8, 0x00, 0x02, 0x00, 0x00, 0x00, 0x84, 0x00, 0xA8,
-			0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x02, 0x05, 0x00, 0x01, 0x02, 0x05,
-			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x10, 0x5F, 0x9A, 0xB2, 0x56, 0x65, 0x3D, 0x11, 0x08,
-			0x50, 0x6A, 0xE8, 0x2D, 0x5F, 0x63, 0x8F, 0x74, 0x00, 0x0E, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00,
-			0xB8, 0x0B, 0x00, 0x00, 0xB8, 0x0B, 0x00, 0x00, 0x12, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01,
-			0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0xD6, 0x05, 0xA4, 0x00, 0x00, 0x00, 0x01,
-			0x00, 0x00, 0x00, 0x01, 0x1C, 0x01, 0x00, 0x01, 0x00, 0x00, 0x16, 0x43, 0x69, 0x74, 0x72, 0x69,
-			0x78, 0x2E, 0x54, 0x63, 0x70, 0x50, 0x72, 0x6F, 0x78, 0x79, 0x53, 0x65, 0x72, 0x76, 0x69, 0x63,
-			0x65
-	};
 	char const* script{"exec(shr{140};"};
 	uint8_t err{};
 	uint64_t num_pck{};
 	auto parse = Parsed(script);
-	parse.Run(kIn.data(), kIn.size());
-	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Missing \")\" or \";\"", parse.msg.size()));
+	EXPECT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Missing \")\" or \";\"exec(shr{140};", parse.msg.size()));
+}
+
+TEST(Parse, check_semicolon) {
+	char const* script{"exec(shrb{3})"};
+	auto parse = Parsed(script);
+	ASSERT_TRUE(0 == std::memcmp(parse.msg.c_str(), "Missing \")\" or \";\"exec(shrb{3})", parse.msg.size()));
 }
 
 TEST(Parse, check_lid_and) {

@@ -282,44 +282,46 @@ struct Parsed {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRangeRight(args.size(), msg));
 		this->funcs.back().emplace_back(Shit::Mod(args));
 	}
+	std::vector<std::function<std::function<void(uint8_t*,uint8_t*,std::map<uint64_t,std::vector<uint8_t>>&)>(std::vector<std::vector<uint8_t>>&,uint64_t const)>> vf{
+		Shit::DefragOnly, Shit::DefragFirst, Shit::DefragMiddle, Shit::DefragLast
+	};
 	// DEFRAG
-	template<class T>
-		void Defrag(std::vector<uint64_t> const& args,
-						std::vector<uint64_t> const& args_id) {
-			this->funcs.back().emplace_back(
-				Shit::Defrag(
-					Shit::Defrag<T>(args,
-										 args_id,
-										 this->defrag,
-										 Shit::DefragOnly(this->vec)),
-					Shit::Defrag<T>(args,
-										 args_id,
-										 this->defrag,
-										 Shit::DefragFirst(this->vec, args[2])),
-					Shit::Defrag<T>(args,
-										 args_id,
-										 this->defrag,
-										 Shit::DefragMiddle(this->vec, args[2])),
-					Shit::Defrag<T>(args,
-										 args_id,
-										 this->defrag,
-										 Shit::DefragLast(this->vec, args[2]))));
-		}
-	// DEFRAG
-	void Defrag(std::vector<uint64_t> const& args,
-					std::vector<uint64_t> const& args_id) {
+	void Defrag(std::vector<std::vector<uint64_t>> const& args,
+					std::vector<std::vector<uint64_t>> const& args_id) {
 		this->funcs.back().emplace_back(Shit::Check::OutOfRange());
-		if (args[1] <= Parse::kMaxChar) {
-			Defrag<uint8_t>(args, args_id);
-		} else if (args[1] <= Parse::kMaxShort) {
-			Defrag<uint16_t>(args, args_id);
-		} else if (args[1] <= Parse::kMaxInt) {
-			Defrag<uint32_t>(args, args_id);
-		} else if (args[1] <= Parse::kMaxLong) {
-			Defrag<uint64_t>(args, args_id);
-		} else {
-			msg = "unknown base: " + std::to_string(args[1]);
+		std::list<Shit::Physical> lst{};
+		for (int i{}; i < args.size(); ++i) {
+			auto ids = args_id.empty() ? std::vector<uint64_t>{} : args_id[i];
+			auto key = args_id.empty() ? uint64_t{} : args_id[i][1];
+			if (args[i][1] <= Parse::kMaxChar) {
+				lst.emplace_back(
+					Shit::Defrag<uint8_t>(args[i],
+												 ids,
+												 this->defrag,
+												 vf[i](this->vvec,key)));
+			} else if (args[0][1] <= Parse::kMaxShort) {
+				lst.emplace_back(
+					Shit::Defrag<uint16_t>(args[i],
+												 ids,
+												 this->defrag,
+												 vf[i](this->vvec,key)));
+			} else if (args[i][1] <= Parse::kMaxInt) {
+				lst.emplace_back(
+					Shit::Defrag<uint32_t>(args[i],
+												 ids,
+												 this->defrag,
+												 vf[i](this->vvec,key)));
+			} else if (args[i][1] <= Parse::kMaxLong) {
+				lst.emplace_back(
+					Shit::Defrag<uint64_t>(args[i],
+												 ids,
+												 this->defrag,
+												 vf[i](this->vvec,key)));
+			} else {
+				msg = "unknown base: " + std::to_string(args[i][1]);
+			}
 		}
+		this->funcs.back().emplace_back(Shit::Defrag(lst));
 	}
 	// FILTER
 	void Filter(uint64_t const sz, std::vector<uint64_t> const& args) {
@@ -854,19 +856,23 @@ struct Parsed {
 		static int const kNumArgs{3};
 		static int const kNumArgsId{2};
 		uint8_t state{Parse::Utils::kNotMine};
+		std::vector<std::vector<uint64_t>> args{};
+		auto args_id = decltype(args){};
 		while (FindDefragElms(beg, end)) {
 			if (kMinArgs <= std::count(beg, end, ',')) {
-				auto args = GetArgs(beg, end, kNumArgs);
+				auto tmp_end = std::find(beg, end, '}');
+				args.emplace_back(GetArgs(beg, tmp_end, kNumArgs));
 				auto args_id = decltype(args){};
-				if (kMinArgsId <= std::count(beg, end, ',')) {
-					args_id = GetArgs(beg, end, kNumArgsId);
+				if (beg[-1] != '}' && kMinArgsId <= std::count(beg, tmp_end, ',')) {
+					args_id.emplace_back(GetArgs(beg, tmp_end, kNumArgsId));
 				}
-				Defrag(args, args_id);
+				++beg;
 			} else {
 				msg = "command \"defrag\" invalid: " + std::string(beg,end);
 				state = Parse::Utils::kErr;
 			}
 		}
+		Defrag(args, args_id);
 		return state;
 	}
 	// DEFRAG
@@ -937,6 +943,16 @@ struct Parsed {
 		}
 		return ret;
 	}
+	// FIND END ARGUMENTS
+	ItStr FindEndAgrs(ItStr& beg, ItStr& end) {
+		auto args_beg = std::find(beg, end, '{');
+		auto args_end = std::find(beg, end, '}');
+		if (args_beg < args_end) {
+			++args_end;
+			args_end	= FindEndAgrs(args_end, end);
+		}
+		return args_end;
+	}
 	// COMMANDS
 	template<class... ArgsTuple>
 		auto Commands(ArgsTuple... args_tuple) ->
@@ -951,7 +967,7 @@ struct Parsed {
 						command = GetCommand(name, beg, end);
 						if (!command.empty()) {
 							beg += name.size();
-							auto end_arg = std::find(beg, end, '}');
+							auto end_arg = FindEndAgrs(beg, end);
 							state = Parse::Utils::for_tuple(ts, command, beg, end_arg);
 							beg += kNextArg;
 							break;
@@ -982,22 +998,22 @@ struct Parsed {
 		std::list<Shit::Physical> args{};
 		while (beg < end) {
 			auto commands = Commands(
-				Crop()
-				/* Shr(),ShrInBits(), */
-				/* Shl(),ShlInBits(), */
-				/* Eq(),EqNot(), */
-				/* Filter(),FilterNot(), */
-				/* And(),AndNot(), */
-				/* Split(),SplitNot(), */
-				/* Insert(), */
-				/* Replace(),Xor(),Mod(), */
-				/* Inversion() */
+				Crop(),
+				Shr(),ShrInBits(),
+				Shl(),ShlInBits(),
+				Eq(),EqNot(),
+				Filter(),FilterNot(),
+				And(),AndNot(),
+				Split(),SplitNot(),
+				Insert(),
+				Replace(),Xor(),Mod(),
+				Inversion()
 				);
 			while (beg < end) {
-				/* uint8_t const state{commands(beg, end)}; */
-				/* if (state == Parse::Utils::kErr) { */
-				/* break; */
-				/* } */
+				uint8_t const state{commands(beg, end)};
+				if (state == Parse::Utils::kErr) {
+					break;
+				}
 			}
 			beg = std::search(beg, end,
 									Parse::kExec.begin(), Parse::kExec.end());
@@ -1019,8 +1035,7 @@ struct Parsed {
 		}
 	// EXECUTION
 	template<class Save>
-		uint8_t Exec(ItStr& beg, ItStr& end, Save save) {
-			uint8_t state{Parse::Utils::kErr};
+		void Exec(ItStr& beg, ItStr& end, Save save) {
 			auto tmp_beg = std::search(beg, end, Parse::kExec.begin(), Parse::kExec.end()); 
 			if (tmp_beg < end) {
 				beg = tmp_beg;
@@ -1051,7 +1066,6 @@ struct Parsed {
 					}
 				}
 			}
-			return state;
 		}
 	// CONSTRUCTOR
 	explicit Parsed(std::string str) {
@@ -1063,15 +1077,16 @@ struct Parsed {
 		auto beg = script.begin();
 		auto end = std::search(script.begin(), script.end(),
 									  Parse::kEnd.begin(), Parse::kEnd.end());
-		while (end < script.end()) {
-			uint8_t state{Exec(beg, end, Shit::Test(this->vec))};
-			if (state == Parse::Utils::kErr) {
-				msg = "exec error";
+		if (end == script.end()) {
+			msg = "Missing \")\" or \";\"" + std::string(beg, end);
+		} else {
+			while (end < script.end()) {
+				Exec(beg, end, Shit::Test(this->vec));
+				Every(beg, end, Shit::TestContainer(this->vvec));
+				end = beg + 2;
+				end = std::search(end, script.end(),
+										Parse::kEnd.begin(), Parse::kEnd.end());
 			}
-			Every(beg, end, Shit::TestContainer(this->vvec));
-			end = beg + 2;
-			end = std::search(end, script.end(),
-									Parse::kEnd.begin(), Parse::kEnd.end());
 		}
 	}
 	// RUN INSERT
